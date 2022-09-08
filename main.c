@@ -920,16 +920,6 @@ lval* builtin_if(lenv* e,lval* a){
     return x;
 }
 
-lval* builtin_loop(lenv* e,lval* a){
-    LASSERT_NUM("loop",a,1);
-    LASSERT_TYPE("loop",a,0,LVAL_QEXPR);
-    a->cell[0]->type=LVAL_SEXPR;
-    loop:    
-        lval_eval(e,a->cell[0]);
-    goto loop;
-    return lval_sexpr();
-}
-
 /*math*/
 lval* builtin_add(lenv* e,lval* a){
     return builtin_op(e,a,"+");
@@ -1164,7 +1154,6 @@ void lenv_add_builtins(lenv* e){
 
     /* Logical Functions */
     lenv_add_builtin(e, "if", builtin_if);
-    lenv_add_builtin(e, "loop", builtin_loop);
     lenv_add_builtin(e, "==", builtin_eq);
     lenv_add_builtin(e, "!=", builtin_ne);
     lenv_add_builtin(e, ">",  builtin_gt);
