@@ -1,9 +1,9 @@
 BIT = 32
 ifeq ($(BIT),32)
-	GCC_FLAG = -m32 -Os -ffunction-sections -fdata-sections -s -w -std=c11
+	GCC_FLAG = -m32 -Os -ffunction-sections -fdata-sections -s -w -std=c11 -static
 	ICO_FLAG = -F pe-i386
 else
-	GCC_FLAG = -Os -ffunction-sections -fdata-sections -s -w -std=c11
+	GCC_FLAG = -Os -ffunction-sections -fdata-sections -s -w -std=c11 -static
 	ICO_FLAG = 
 endif
 
