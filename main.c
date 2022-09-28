@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <time.h>
+#include <unistd.h>
 #include"./lib/mpc.h"
 
 #ifdef _WIN32
@@ -1127,9 +1128,16 @@ lval* builtin_exit(lenv* e,lval* a){
 lval* builtin_time(lenv* e,lval* a){
     return lval_num(time((int)a->cell[0]->num));
 }
-lval* builtin_rand(lenv* e,lval* a){
+lval* builtin_srand(lenv* e,lval* a){
     srand(a->cell[0]->num);
-    return lval_num(rand());
+    return lval_sexpr();
+}
+lval* builtin_rand(lenv* e,lval* a){
+	return lval_num(rand());
+}
+lval* builtin_delay(lenv* e,lval* a){
+	sleep((int)a->cell[0]->num);
+	return lval_sexpr();
 }
 void lenv_add_builtins(lenv* e){
 
@@ -1178,7 +1186,9 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "stdout", builtin_stdout);
     lenv_add_builtin(e, "exit", builtin_exit);
     lenv_add_builtin(e, "time", builtin_time);
+    lenv_add_builtin(e, "srand", builtin_srand);
     lenv_add_builtin(e, "rand", builtin_rand);
+    lenv_add_builtin(e, "delay", builtin_delay);
 }
 int main(int argc,char* argv[]){
     /*
@@ -1240,7 +1250,7 @@ int main(int argc,char* argv[]){
     
     if(argc==1){
 
-        puts("Cabbagelang Version 3.0.0");
+        puts("Cabbagelang Version 3.0.1");
         puts("press Ctrl+c to Exit\n");
 
         while(1){
