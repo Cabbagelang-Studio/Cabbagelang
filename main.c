@@ -1109,6 +1109,61 @@ lval* builtin_kin(lenv* e,lval* a){
     return lval_str(input);
 }
 
+
+char *readfile(char *path, int *length)
+{
+	FILE *pfile;
+	char *data;
+ 
+	pfile = fopen(path, "rb");
+	if (pfile == NULL)
+	{
+		return NULL;
+	}
+	fseek(pfile, 0, SEEK_END);
+	*length = ftell(pfile);
+	data = (char *)malloc((*length + 1) * sizeof(char));
+	rewind(pfile);
+	*length = fread(data, 1, *length, pfile);
+	data[*length] = '\0';
+	fclose(pfile);
+	return data;
+}
+
+lval* builtin_getall(lenv* e,lval* a){
+	int buffer=0;
+	char* input=readfile(a->cell[0]->str,&buffer);
+	lval_del(a);
+	return lval_str(input);
+}
+long get_file_size(FILE *stream)
+{
+	long file_size = -1;
+	long cur_offset = ftell(stream);
+	if (cur_offset == -1) {
+		printf("ftell failed :%s\n", strerror(errno));
+		return -1;
+	}
+	if (fseek(stream, 0, SEEK_END) != 0) {
+		printf("fseek failed: %s\n", strerror(errno));
+		return -1;
+	}
+	file_size = ftell(stream);
+	if (file_size == -1) {
+		printf("ftell failed :%s\n", strerror(errno));
+	}
+	if (fseek(stream, cur_offset, SEEK_SET) != 0) {
+		printf("fseek failed: %s\n", strerror(errno));
+		return -1;
+	}
+	return file_size;
+}
+lval* builtin_sizeof(lenv* e,lval* a){
+	FILE *pFile;
+	pFile = fopen(a->cell[0]->str, "rb");
+	return lval_num(get_file_size(pFile));
+}
+
 lval* builtin_stdin(lenv* e,lval* a){
     freopen(a->cell[0]->str,a->cell[1]->str,stdin);
     lval_del(a);
@@ -1116,6 +1171,11 @@ lval* builtin_stdin(lenv* e,lval* a){
 }
 lval* builtin_stdout(lenv* e,lval* a){
     freopen(a->cell[0]->str,a->cell[1]->str,stdout);
+    lval_del(a);
+    return lval_sexpr();
+}
+lval* builtin_stderr(lenv* e,lval* a){
+	freopen(a->cell[0]->str,a->cell[1]->str,stderr);
     lval_del(a);
     return lval_sexpr();
 }
@@ -1177,12 +1237,17 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "strlen", builtin_strlen);
     lenv_add_builtin(e, "nts", builtin_nts);
     lenv_add_builtin(e, "stn", builtin_stn);
+    
+    /* File Functions  */
+    lenv_add_builtin(e, "getall", builtin_getall);
+    lenv_add_builtin(e, "sizeof", builtin_sizeof);
 
     /* System Functions */
     lenv_add_builtin(e, "system", builtin_system);
     lenv_add_builtin(e, "kin", builtin_kin);
     lenv_add_builtin(e, "stdin", builtin_stdin);
     lenv_add_builtin(e, "stdout", builtin_stdout);
+    lenv_add_builtin(e, "stderr", builtin_stderr);
     lenv_add_builtin(e, "exit", builtin_exit);
     lenv_add_builtin(e, "time", builtin_time);
     lenv_add_builtin(e, "srand", builtin_srand);
