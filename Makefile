@@ -1,6 +1,10 @@
 BIT = 32
 ifeq ($(BIT),32)
-	GCC_FLAG = -m32 -Os -ffunction-sections -fdata-sections -s -w -std=c11 -static
+	ifeq ($(OS),Windows_NT)
+		GCC_FLAG = -m32 -Os -ffunction-sections -fdata-sections -s -w -std=c11 -static -lws2_32
+	else
+		GCC_FLAG = -m32 -Os -ffunction-sections -fdata-sections -s -w -std=c11 -static
+	endif
 	ICO_FLAG = -F pe-i386
 else
 	GCC_FLAG = -Os -ffunction-sections -fdata-sections -s -w -std=c11 -static
