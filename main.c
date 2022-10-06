@@ -698,6 +698,91 @@ lval* lval_call(lenv* e,lval* f,lval* a){
       LASSERT(args, args->cell[index]->count != 0, \
         "Function '%s' passed {} for argument %i.", func, index);
 
+#ifdef _WIN32
+#include <winsock2.h>
+#include <windows.h>
+
+lval* http_request(const char* hostname,int port,const char* request){
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
+        return lval_num(1);
+    }
+    SOCKET Socket=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
+    struct hostent *host;
+    host = gethostbyname(hostname);
+    SOCKADDR_IN SockAddr;
+    SockAddr.sin_port=htons(port);
+    SockAddr.sin_family=AF_INET;
+    SockAddr.sin_addr.s_addr = *((unsigned long*)host->h_addr);
+    if(connect(Socket,(SOCKADDR*)(&SockAddr),sizeof(SockAddr)) != 0){
+        return lval_num(1);
+    }
+    send(Socket,request, strlen(request),0);
+    char* x=malloc(1*sizeof(char));
+    x="\0";
+    char buffer[1024];
+    int nDataLength;
+    while ((nDataLength = recv(Socket,buffer,1024,0)) > 0){        
+        int i = 0;
+        while (buffer[i] >= 32 || buffer[i] == '\n' || buffer[i] == '\r') {
+            char* tmp=x;
+	        x=malloc((strlen(x)+2)*sizeof(char)+3);
+	        strcpy(x,tmp);
+	        char character[2]={buffer[i],'\0'};
+	        strcat(x,character);
+            i += 1;
+        }
+    }
+    closesocket(Socket);
+        WSACleanup();
+    return lval_str(x);
+}
+#else
+
+#include <errno.h>
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h> 
+
+lval* http_request(const char* hostname, int port, const char* request){
+	int sockfd;
+	int len;
+	struct sockaddr_in address;
+	int result;
+	char ch;
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = gethostbyname(hostname) ;
+	address.sin_port = htons(port);
+	len = sizeof(address);
+	result = connect(sockfd,  (struct sockaddr *)&address, len);
+	if(result == -1){
+	    perror("Failed to connect.");
+	    return 1;
+	}
+	
+	write(sockfd,request,strlen(request));
+	
+	char* x=malloc(1*sizeof(char));
+    x="\0";
+	
+	while(read(sockfd,&ch,1))
+	    char* tmp=x;
+        x=malloc((strlen(x)+2)*sizeof(char)+3);
+        strcpy(x,tmp);
+        char character[2]={ch,'\0'};
+        strcat(x,character);
+	close(sockfd);
+	
+	return 0;
+}
+
+#endif
+
 lval* builtin_error(lenv* e,lval* a){
     LASSERT_NUM("throw", a, 1);
     LASSERT_TYPE("throw", a, 0, LVAL_STR);
@@ -1198,6 +1283,9 @@ lval* builtin_delay(lenv* e,lval* a){
 	sleep((int)a->cell[0]->num);
 	return lval_sexpr();
 }
+lval* builtin_request(lenv* e,lval* a){
+	return http_request(a->cell[0]->str,a->cell[1]->num,a->cell[2]->str);
+}
 void lenv_add_builtins(lenv* e){
 
     lenv_add_builtin(e,"\\",builtin_lambda);
@@ -1253,6 +1341,7 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "srand", builtin_srand);
     lenv_add_builtin(e, "rand", builtin_rand);
     lenv_add_builtin(e, "delay", builtin_delay);
+    lenv_add_builtin(e, "request", builtin_request);
 }
 int main(int argc,char* argv[]){
     /*
@@ -1315,7 +1404,7 @@ int main(int argc,char* argv[]){
     if(argc==1){
 
         puts("Cabbagelang Version 3.0.1");
-        puts("press Ctrl+c to Exit\n");
+        puts("press Ctrl+C to Exit\n");
 
         while(1){
             char* input=readline("Cabbagelang>>> ");
