@@ -20,8 +20,8 @@ char* readline(char* prompt){
 void add_history(char* unused){}
 
 #else
-#include<editline/readline.h>
-#include<editline/history.h>
+#include<readline/readline.h>
+#include<readline/history.h>
 #endif
 
 //parser
@@ -755,13 +755,16 @@ lval* http_request(const char* hostname, int port, const char* request){
 	int result;
 	char ch;
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if(sockfd<0){
+		perror("Failed to connect");
+	}
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = gethostbyname(hostname) ;
 	address.sin_port = htons(port);
 	len = sizeof(address);
 	result = connect(sockfd,  (struct sockaddr *)&address, len);
 	if(result == -1){
-	    perror("Failed to connect.");
+	    perror("Failed to connect");
 	    return 1;
 	}
 	
@@ -770,12 +773,13 @@ lval* http_request(const char* hostname, int port, const char* request){
 	char* x=malloc(1*sizeof(char));
     x="\0";
 	
-	while(read(sockfd,&ch,1))
+	while(read(sockfd,&ch,1)){
 	    char* tmp=x;
-        x=malloc((strlen(x)+2)*sizeof(char)+3);
-        strcpy(x,tmp);
-        char character[2]={ch,'\0'};
-        strcat(x,character);
+            x=malloc((strlen(x)+2)*sizeof(char)+3);
+            strcpy(x,tmp);
+            char character[2]={ch,'\0'};
+            strcat(x,character);
+	}
 	close(sockfd);
 	
 	return 0;
