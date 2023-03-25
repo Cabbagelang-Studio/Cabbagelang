@@ -1144,6 +1144,7 @@ lval* builtin_cs(lenv* e,lval* a){
     char* x=malloc(1*sizeof(char));
     x="\0";
     for(int i=0;i<a->count;i++){
+    	LASSERT_TYPE("#",a,i,LVAL_STR);
         char* tmp=x;
         x=malloc((strlen(x)+strlen(a->cell[i]))*sizeof(char)+2);
         strcpy(x,tmp);
@@ -1155,6 +1156,9 @@ lval* builtin_cs(lenv* e,lval* a){
     return result;
 }
 lval* builtin_substr(lenv* e,lval* a){
+	LASSERT_NUM("!",a,2);
+	LASSERT_TYPE("!",a,0,LVAL_STR);
+	LASSERT_TYPE("!",a,1,LVAL_NUM);
     char* result;
     result=a->cell[0]->str;
     int index=a->cell[1]->num;
@@ -1163,9 +1167,13 @@ lval* builtin_substr(lenv* e,lval* a){
     return x;
 }
 lval* builtin_strlen(lenv* e, lval* a){
+	LASSERT_TYPE("strlen",a,0,LVAL_STR);
+	LASSERT_NUM("strlen",a,1)
     return lval_num(strlen(a->cell[0]->str));
 }
 lval* builtin_nts(lenv* e, lval* a){
+	LASSERT_TYPE("nts",a,0,LVAL_NUM);
+	LASSERT_NUM("nts",a,1);
     int length=0;
     double d=a->cell[0]->num,d2=d;
     while(d!=0){
@@ -1183,16 +1191,22 @@ lval* builtin_nts(lenv* e, lval* a){
     return lval_str(x);
 }
 lval* builtin_stn(lenv* e, lval* a){
+	LASSERT_TYPE("stn",a,0,LVAL_STR);
+	LASSERT_NUM("stn",a,1);
     return lval_num(atof(a->cell[0]->str));
 }
 
 lval* builtin_system(lenv* e,lval* a){
+	LASSERT_TYPE("system",a,0,LVAL_STR);
+	LASSERT_NUM("system",a,1);
     system(a->cell[0]->str);
     lval_del(a);
     return lval_sexpr();
 }
 
 lval* builtin_kin(lenv* e,lval* a){
+	LASSERT_TYPE("kin",a,0,LVAL_STR);
+	LASSERT_NUM("kin",a,1);
     char* input=readline(a->cell[0]->str);
     lval_del(a);
     return lval_str(input);
@@ -1220,6 +1234,8 @@ char *readfile(char *path, int *length)
 }
 
 lval* builtin_getall(lenv* e,lval* a){
+	LASSERT_TYPE("getall",a,0,LVAL_STR);
+	LASSERT_NUM("getall",a,1);
 	int buffer=0;
 	char* input=readfile(a->cell[0]->str,&buffer);
 	lval_del(a);
@@ -1248,46 +1264,68 @@ long get_file_size(FILE *stream)
 	return file_size;
 }
 lval* builtin_sizeof(lenv* e,lval* a){
+	LASSERT_TYPE("sizeof",a,0,LVAL_STR);
+	LASSERT_NUM("sizeof",a,1);
 	FILE *pFile;
 	pFile = fopen(a->cell[0]->str, "rb");
 	return lval_num(get_file_size(pFile));
 }
 
 lval* builtin_stdin(lenv* e,lval* a){
+	LASSERT_TYPE("stdin",a,0,LVAL_STR);
+	LASSERT_NUM("stdin",a,1);
     freopen(a->cell[0]->str,a->cell[1]->str,stdin);
     lval_del(a);
     return lval_sexpr();
 }
 lval* builtin_stdout(lenv* e,lval* a){
+	LASSERT_TYPE("stdout",a,0,LVAL_STR);
+	LASSERT_NUM("stdout",a,1);
     freopen(a->cell[0]->str,a->cell[1]->str,stdout);
     lval_del(a);
     return lval_sexpr();
 }
 lval* builtin_stderr(lenv* e,lval* a){
+	LASSERT_TYPE("stdout",a,0,LVAL_STR);
+	LASSERT_NUM("stdout",a,1);
 	freopen(a->cell[0]->str,a->cell[1]->str,stderr);
     lval_del(a);
     return lval_sexpr();
 }
 lval* builtin_exit(lenv* e,lval* a){
+	LASSERT_TYPE("exit",a,0,LVAL_NUM);
+	LASSERT_NUM("exit",a,1);
     exit(a->cell[0]->num);
     return lval_sexpr();
 }
 
 lval* builtin_time(lenv* e,lval* a){
+	LASSERT_TYPE("time",a,0,LVAL_NUM);
+	LASSERT_NUM("time",a,1);
     return lval_num(time((int)a->cell[0]->num));
 }
 lval* builtin_srand(lenv* e,lval* a){
+	LASSERT_TYPE("srand",a,0,LVAL_NUM);
+	LASSERT_NUM("srand",a,1);
     srand(a->cell[0]->num);
     return lval_sexpr();
 }
 lval* builtin_rand(lenv* e,lval* a){
+	LASSERT_TYPE("rand",a,0,LVAL_SEXPR);
+	LASSERT_NUM("rand",a,1);
 	return lval_num(rand());
 }
 lval* builtin_delay(lenv* e,lval* a){
+	LASSERT_TYPE("delay",a,0,LVAL_NUM);
+	LASSERT_NUM("delay",a,1);
 	sleep((int)a->cell[0]->num);
 	return lval_sexpr();
 }
 lval* builtin_request(lenv* e,lval* a){
+	LASSERT_NUM("request",a,3);
+	LASSERT_TYPE("request",a,0,LVAL_STR);
+	LASSERT_TYPE("request",a,1,LVAL_NUM);
+	LASSERT_TYPE("request",a,2,LVAL_STR);
 	return http_request(a->cell[0]->str,a->cell[1]->num,a->cell[2]->str);
 }
 void lenv_add_builtins(lenv* e){
