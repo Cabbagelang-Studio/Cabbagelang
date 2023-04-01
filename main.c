@@ -599,6 +599,9 @@ lval* lval_eval_sexpr(lenv* e,lval* v){
 
     //function
     lval* f=lval_pop(v,0);
+    if(f->type==LVAL_SEXPR){
+    	return lval_sexpr();
+	}
     if(f->type!=LVAL_FUN){
         lval* err = lval_err(
             "S-Expression starts with incorrect type. "
@@ -739,48 +742,9 @@ lval* http_request(const char* hostname,int port,const char* request){
 }
 #else
 
-#include <errno.h>
-
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h> 
-
 lval* http_request(const char* hostname, int port, const char* request){
-	int sockfd;
-	int len;
-	struct sockaddr_in address;
-	int result;
-	char ch;
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if(sockfd<0){
-		perror("Failed to connect");
-	}
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = gethostbyname(hostname) ;
-	address.sin_port = htons(port);
-	len = sizeof(address);
-	result = connect(sockfd,  (struct sockaddr *)&address, len);
-	if(result == -1){
-	    perror("Failed to connect");
-	    return 1;
-	}
 	
-	write(sockfd,request,strlen(request));
-	
-	char* x=malloc(1*sizeof(char));
-    x="\0";
-	
-	while(read(sockfd,&ch,1)){
-	    char* tmp=x;
-            x=malloc((strlen(x)+2)*sizeof(char)+3);
-            strcpy(x,tmp);
-            char character[2]={ch,'\0'};
-            strcat(x,character);
-	}
-	close(sockfd);
+	lval_err("Function \"request\" is not compatible with Linux. Use CURL instead.");
 	
 	return 0;
 }
