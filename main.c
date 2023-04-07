@@ -742,11 +742,81 @@ lval* http_request(const char* hostname,int port,const char* request){
 }
 #else
 
-lval* http_request(const char* hostname, int port, const char* request){
-	
-	lval_err("Function \"request\" is not compatible with Linux. Use CURL instead.");
-	
-	return 0;
+#include<string.h>
+
+#include<sys/socket.h>
+#include<sys/select.h>
+#include<netinet/in.h>
+#include<arpa/inet.h>
+#include<unistd.h>
+#include<netdb.h>
+#include <fcntl.h>
+
+#define BUFFER_SIZE 4096
+
+
+char* host_to_ip(const char* hostname){
+    struct hostent *host_entry=gethostbyname(hostname);
+    if(host_entry){
+        return inet_ntoa(*(struct in_addr*)*host_entry->h_addr_list);
+    }
+    return NULL;
+}
+
+
+int http_create_socket(char* ip,int port){
+    int sockfd=socket(AF_INET,SOCK_STREAM,0);
+    struct sockaddr_in sin={0};
+    sin.sin_family=AF_INET;
+    sin.sin_port=htons(port);
+    sin.sin_addr.s_addr=inet_addr(ip);
+ 
+    // int ret=connect(sockfd,(sockaddr*)&sin,sizeof(sockaddr_in));
+    // if(ret!=0) return -1;
+    if (0 != connect(sockfd, (struct sockaddr*)&sin, sizeof(struct sockaddr_in))) {
+        return -1;
+    }
+ 
+    fcntl(sockfd,F_SETFL,O_NONBLOCK);
+    return sockfd;
+}
+
+char* http_request(const char* hostname,int port,const char* request){
+    char* ip=host_to_ip(hostname);
+    int sockfd=http_create_socket(ip,port);
+ 
+    char buffer[BUFFER_SIZE]={0};
+ 
+    send(sockfd,request,strlen(request),0);
+ 
+    //select
+    fd_set fdread;
+    FD_ZERO(&fdread);
+    FD_SET(sockfd,&fdread);
+ 
+    struct timeval tv;
+    tv.tv_sec=5;
+    tv.tv_usec=0;
+ 
+ 
+    char* result=(char*)malloc(sizeof(int));
+    memset(result,0,sizeof(int));
+    while(1){
+        int selection=select(sockfd+1,&fdread,NULL,NULL,&tv);
+        if(!selection||!FD_ISSET(sockfd,&fdread)){
+            break;
+        }else{
+            memset(buffer,0,BUFFER_SIZE);
+            int len=recv(sockfd,buffer,BUFFER_SIZE,0);
+            if(len==0){//disconnect
+                break;
+            }
+            result=(char*)realloc(result,(strlen(result)+len+1)*sizeof(char));
+            strncat(result,buffer,len);
+        }
+    }
+    return result;
+ 
 }
 
 #endif
@@ -1290,7 +1360,11 @@ lval* builtin_request(lenv* e,lval* a){
 	LASSERT_TYPE("request",a,0,LVAL_STR);
 	LASSERT_TYPE("request",a,1,LVAL_NUM);
 	LASSERT_TYPE("request",a,2,LVAL_STR);
-	return http_request(a->cell[0]->str,a->cell[1]->num,a->cell[2]->str);
+	char* hostname=a->cell[0]->str;
+	int port=a->cell[1]->num;
+	char* request=a->cell[2]->str; 
+	char* result=http_request(hostname,port,request);
+	return lval_str(result);
 }
 void lenv_add_builtins(lenv* e){
 
