@@ -1355,6 +1355,15 @@ lval* builtin_delay(lenv* e,lval* a){
 	sleep((int)a->cell[0]->num);
 	return lval_sexpr();
 }
+#ifdef _WIN32
+lval* builtin_request(lenv* e,lval* a){
+	LASSERT_NUM("request",a,3);
+	LASSERT_TYPE("request",a,0,LVAL_STR);
+	LASSERT_TYPE("request",a,1,LVAL_NUM);
+	LASSERT_TYPE("request",a,2,LVAL_STR);
+	return http_request(a->cell[0]->str,a->cell[1]->num,a->cell[2]->str);
+}
+#else
 lval* builtin_request(lenv* e,lval* a){
 	LASSERT_NUM("request",a,3);
 	LASSERT_TYPE("request",a,0,LVAL_STR);
@@ -1366,6 +1375,7 @@ lval* builtin_request(lenv* e,lval* a){
 	char* result=http_request(hostname,port,request);
 	return lval_str(result);
 }
+#endif
 void lenv_add_builtins(lenv* e){
 
     lenv_add_builtin(e,"\\",builtin_lambda);
@@ -1483,7 +1493,7 @@ int main(int argc,char* argv[]){
     
     if(argc==1){
 
-        puts("Cabbagelang Version 3.0.1");
+        puts("Cabbagelang Version 3.0.2");
         puts("press Ctrl+C to Exit\n");
 
         while(1){
