@@ -1307,21 +1307,21 @@ lval* builtin_sizeof(lenv* e,lval* a){
 
 lval* builtin_stdin(lenv* e,lval* a){
 	LASSERT_TYPE("stdin",a,0,LVAL_STR);
-	LASSERT_NUM("stdin",a,1);
+	LASSERT_NUM("stdin",a,2);
     freopen(a->cell[0]->str,a->cell[1]->str,stdin);
     lval_del(a);
     return lval_sexpr();
 }
 lval* builtin_stdout(lenv* e,lval* a){
 	LASSERT_TYPE("stdout",a,0,LVAL_STR);
-	LASSERT_NUM("stdout",a,1);
+	LASSERT_NUM("stdout",a,2);
     freopen(a->cell[0]->str,a->cell[1]->str,stdout);
     lval_del(a);
     return lval_sexpr();
 }
 lval* builtin_stderr(lenv* e,lval* a){
 	LASSERT_TYPE("stdout",a,0,LVAL_STR);
-	LASSERT_NUM("stdout",a,1);
+	LASSERT_NUM("stdout",a,2);
 	freopen(a->cell[0]->str,a->cell[1]->str,stderr);
     lval_del(a);
     return lval_sexpr();
