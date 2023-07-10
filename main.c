@@ -1180,7 +1180,7 @@ lval* builtin_cs(lenv* e,lval* a){
     for(int i=0;i<a->count;i++){
     	LASSERT_TYPE("#",a,i,LVAL_STR);
         char* tmp=x;
-        x=malloc((strlen(x)+strlen(a->cell[i]))*sizeof(char)+2);
+        x=malloc((strlen(x)+strlen(a->cell[i]))*sizeof(char)+16);
         strcpy(x,tmp);
         strcat(x,a->cell[i]->str);
     }
@@ -1208,19 +1208,7 @@ lval* builtin_strlen(lenv* e, lval* a){
 lval* builtin_nts(lenv* e, lval* a){
 	LASSERT_TYPE("nts",a,0,LVAL_NUM);
 	LASSERT_NUM("nts",a,1);
-    int length=0;
-    double d=a->cell[0]->num,d2=d;
-    while(d!=0){
-        length++;
-        d=d/10-(int)d%10;
-    }d2=d-(int)d2;
-    length++;
-    while(d2!=0){
-        length++;
-        d2=d2*10;
-        d2=d2-(int)d2;
-    }length++;
-    char* x=malloc(length);
+    char x[512]={0};
     sprintf(x,"%lf",a->cell[0]->num);
     return lval_str(x);
 }
