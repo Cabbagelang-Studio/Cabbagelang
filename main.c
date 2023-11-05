@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <time.h>
 #include <unistd.h>
+#include <malloc.h>
 #include"./lib/mpc.h"
 
 #ifdef _WIN32
@@ -522,13 +523,13 @@ void lval_print_str(lval* v){
     strcpy(escaped,v->str);
     escaped=(char*)mpcf_escape(escaped);
     escaped=lval_string_replace(escaped,"\\n","\n");
-    escaped=lval_string_replace(escaped,"\\0","\0");
     escaped=lval_string_replace(escaped,"\\r","\r");
     escaped=lval_string_replace(escaped,"\\t","\t");
     escaped=lval_string_replace(escaped,"\\v","\v");
     escaped=lval_string_replace(escaped,"\\a","\a");
     escaped=lval_string_replace(escaped,"\\b","\b");
     escaped=lval_string_replace(escaped,"\\f","\f");
+    escaped=lval_string_replace(escaped,"\\0","\0");
     printf("%s",escaped);
     free(escaped);
 }
@@ -1175,16 +1176,12 @@ lval* builtin_load(lenv* e,lval* a){
 }
 
 lval* builtin_cs(lenv* e,lval* a){
-    char* x=malloc(1*sizeof(char));
-    x="\0";
-    for(int i=0;i<a->count;i++){
-    	LASSERT_TYPE("#",a,i,LVAL_STR);
-        char* tmp=x;
-        x=malloc((strlen(x)+strlen(a->cell[i]))*sizeof(char)+16);
-        strcpy(x,tmp);
-        strcat(x,a->cell[i]->str);
-    }
-    strcat(x,"\0");
+	LASSERT_NUM("#",a,2);
+	LASSERT_TYPE("#",a,0,LVAL_STR);
+	LASSERT_TYPE("#",a,1,LVAL_STR);
+	char *x = (char *) malloc(strlen(a->cell[0]->str) + strlen(a->cell[1]->str));
+    strcpy(x, a->cell[0]->str);
+    strcat(x, a->cell[1]->str);
     lval_del(a);
     lval* result=lval_str(x);
     return result;
@@ -1198,11 +1195,12 @@ lval* builtin_substr(lenv* e,lval* a){
     int index=a->cell[1]->num;
     char* this=result[index];
     lval* x=lval_str(&this);
+    lval_del(a);
     return x;
 }
 lval* builtin_strlen(lenv* e, lval* a){
 	LASSERT_TYPE("strlen",a,0,LVAL_STR);
-	LASSERT_NUM("strlen",a,1)
+	LASSERT_NUM("strlen",a,1);
     return lval_num(strlen(a->cell[0]->str));
 }
 lval* builtin_nts(lenv* e, lval* a){
@@ -1210,6 +1208,7 @@ lval* builtin_nts(lenv* e, lval* a){
 	LASSERT_NUM("nts",a,1);
     char x[512]={0};
     sprintf(x,"%lf",a->cell[0]->num);
+    lval_del(a);
     return lval_str(x);
 }
 lval* builtin_stn(lenv* e, lval* a){
@@ -1224,6 +1223,41 @@ lval* builtin_system(lenv* e,lval* a){
     system(a->cell[0]->str);
     lval_del(a);
     return lval_sexpr();
+}
+
+lval* builtin_getenv(lenv* e,lval* a){
+	LASSERT_NUM("getenv",a,1);
+	LASSERT_TYPE("getenv",a,0,LVAL_STR);
+	char* value=getenv(a->cell[0]->str);
+	if(!value) return lval_str("");
+	lval_del(a);
+	return lval_str(value);
+} 
+
+lval* builtin_putenv(lenv* e,lval* a){
+	LASSERT_NUM("putenv",a,1);
+	LASSERT_TYPE("putenv",a,0,LVAL_STR); 
+	int result=putenv(a->cell[0]->str);
+	lval_del(a);
+	return lval_num((double)result);
+}
+
+lval* builtin_setenv(lenv* e,lval* a){
+	LASSERT_NUM("setenv",a,3);
+	LASSERT_TYPE("setenv",a,0,LVAL_STR);
+	LASSERT_TYPE("setenv",a,1,LVAL_STR);
+	LASSERT_TYPE("setenv",a,2,LVAL_NUM); 
+	int result=setenv(a->cell[0]->str,a->cell[1]->str,a->cell[2]->num);
+	lval_del(a);
+	return lval_num((double)result);
+}
+
+lval* builtin_unsetenv(lenv* e,lval* a){
+	LASSERT_NUM("unsetenv",a,1);
+	LASSERT_TYPE("unsetenv",a,0,LVAL_STR);
+	int result=unsetenv(a->cell[0]->str);
+	lval_del(a);
+	return lval_num((double)result);
 }
 
 lval* builtin_kin(lenv* e,lval* a){
@@ -1290,6 +1324,7 @@ lval* builtin_sizeof(lenv* e,lval* a){
 	LASSERT_NUM("sizeof",a,1);
 	FILE *pFile;
 	pFile = fopen(a->cell[0]->str, "rb");
+	lval_del(a);
 	return lval_num(get_file_size(pFile));
 }
 
@@ -1318,6 +1353,7 @@ lval* builtin_exit(lenv* e,lval* a){
 	LASSERT_TYPE("exit",a,0,LVAL_NUM);
 	LASSERT_NUM("exit",a,1);
     exit(a->cell[0]->num);
+    lval_del(a);
     return lval_sexpr();
 }
 
@@ -1330,17 +1366,20 @@ lval* builtin_srand(lenv* e,lval* a){
 	LASSERT_TYPE("srand",a,0,LVAL_NUM);
 	LASSERT_NUM("srand",a,1);
     srand(a->cell[0]->num);
+    lval_del(a);
     return lval_sexpr();
 }
 lval* builtin_rand(lenv* e,lval* a){
 	LASSERT_TYPE("rand",a,0,LVAL_SEXPR);
 	LASSERT_NUM("rand",a,1);
+	lval_del(a);
 	return lval_num(rand());
 }
 lval* builtin_delay(lenv* e,lval* a){
 	LASSERT_TYPE("delay",a,0,LVAL_NUM);
 	LASSERT_NUM("delay",a,1);
 	sleep((int)a->cell[0]->num);
+	lval_del(a);
 	return lval_sexpr();
 }
 #ifdef _WIN32
@@ -1404,10 +1443,16 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "nts", builtin_nts);
     lenv_add_builtin(e, "stn", builtin_stn);
     
-    /* File Functions  */
+    /* File Functions */
     lenv_add_builtin(e, "getall", builtin_getall);
     lenv_add_builtin(e, "sizeof", builtin_sizeof);
-
+	
+	/* Environment Functions */
+	lenv_add_builtin(e, "getenv", builtin_getenv); 
+	lenv_add_builtin(e, "putenv", builtin_putenv);
+	lenv_add_builtin(e, "setenv", builtin_setenv);
+	lenv_add_builtin(e, "unsetenv", builtin_unsetenv);
+	
     /* System Functions */
     lenv_add_builtin(e, "system", builtin_system);
     lenv_add_builtin(e, "kin", builtin_kin);
@@ -1421,6 +1466,7 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "delay", builtin_delay);
     lenv_add_builtin(e, "request", builtin_request);
 }
+
 int main(int argc,char* argv[]){
     /*
      * 
@@ -1473,15 +1519,26 @@ int main(int argc,char* argv[]){
     lenv_add_builtins(e);
     
     mpc_result_t r;
-    char* stdlib="(func{nil}{})(func{true}1)(func {false} 0)(func {fun} (\\{f b} {    func (head f)        (\\ (tail f) b)}))(fun {unpack f l}{    eval (join (list f) l)})(fun {pack f & xs} {f xs})(func {curry} unpack)(func {uncurry} pack)(fun {do & l} {    if (== l nil)        {nil}        {last l}})(fun {let b} {    ((\\{_} b) ())})(fun {not x} {- 1 x})(fun {or x y} {+ x y})(fun {and x y} {* x y})(fun {min & xs} {    if (== (tail xs) nil) {fst xs}        {do            (= {rest} (unpack min(tail xs)))            (= {item} (fst xs))            (if (< item rest) {item} {rest})        }})(fun {max & xs} {    if(== (tail xs) nil) {fst xs}        {do            (= {rest} (unpack min (tail xs)))            (= {item} (fst xs))            (if (< item rest) {item} {rest})        }})(fun {flip f a b} {f b a})(fun {ghost & xs} {eval xs})(fun {comp f g x} {f (g x)})(fun {fst l} { eval (head l) })(fun {snd l} { eval (head (tail l)) })(fun {trd l} { eval (head (tail (tail l))) })(fun {len l} {   if (== l nil)    {0}    {+ 1 (len (tail l))}})(fun {nth n l} {   if (== n 0)    {fst l}    {nth (- n 1) (tail l)}})(fun {last l} {nth (- (len l) 1) l})(fun {take n l} {   if (== n 0)    {nil}    {join (head l) (take (- n 1) (tail l))}})(fun {drop n l} {   if (== n 0)    {l}    {drop (- n 1) (tail l)}})(fun {split n l} {list (take n l) (drop n l)})(fun {elem x l} {   if (== l nil)    {false}    {if (== x (fst l))        {true}        {elem x (tail l)}    }})(fun {take-while f l} {   if (not (unpack f (head l)))    {nil}    {join (head l) (take-while f (tail l))}})(fun {drop-while f l} {   if (not (unpack f (head l)))    {l}    {drop-while f (tail l)}})(fun {map f l} {   if (== l nil)    {nil}    {join (list (f (fst l))) (map f (tail l))}})(\\{x}{>x2}){5 2 11 -7 8 1}(fun {filter f l} {    if (== l nil)     {nil}     {join (if (f (fst l))                {head l}                {nil})    (filter f (tail l))}})(fun {foldl f zl}{    if (== l nil)        {z}        {fold l (f z (fst l)) (tail l)}})(fun {sum l} {foldl + 0 l})(fun {product l} {foldl * 1 l})(fun {select &cs} {    if (== cs nil)      {error \"No Selection Found\"}      {if (fst (fst cs))        {snd (fst cs)}        {unpack select (tail cs)}      }})(func {otherwise} true)(fun {month-day-suffix i}{    select        {(== i 0) \"st\"}        {(== i 1) \"nd\"}        {(== i 3) \"rd\"}        {otherwise \"th\"}})(fun {case x & cs} {    if (== cs nil)        {error \"No Case Found\"}        {if (== x (fst (fst cs)))            {snd (fst cs)}            {unpack case (join (list x) (tail cs))}        }})(fun {day-name x} {   case x        {0 \"Monday\"}        {1 \"Tuesday\"}        {2 \"Wednesday\"}        {3 \"Thursday\"}        {4 \"Friday\"}        {5 \"Saturday\"}        {6 \"Sunday\"}})(fun {fib n} {    select        { (== n 0) 0}        { (== n 1) 1}        { otherwise (+ (fib (- n 1)) (fib (- n2)))}})(fun {lookup x l} {   if (== l nil)       {error \"No Element Found\"}        {do            (= {key} (fst (fst l)))            (= {val} (snd (fst l)))            (if (== key x) {val} {lookup x (tail l)})        }})(fun {zip x y} {   if (or (== x nil) (== y nil))    {nil}    {join (list (join (head x) (head y))) (zip (tail x) (tail y))}})(fun {unzip l} {   if (== l nil)    {{nil nil}}    {do        (= {x} (fst l))        (= {xs} (unzip (tail l)))        (list (join (head x) (fst xs)) (join (tail x) (snd xs)))    }})  (fun {while rule expression} {(if (eval rule) {(eval expression) (while rule expression)} {})})";
+    char* stdlib="(func {argv} {})(func{nil}{})(func{true}1)(func {false} 0)(func {fun} (\\{f b} {    func (head f)        (\\ (tail f) b)}))(fun {unpack f l}{    eval (join (list f) l)})(fun {pack f & xs} {f xs})(func {curry} unpack)(func {uncurry} pack)(fun {do & l} {    if (== l nil)        {nil}        {last l}})(fun {let b} {    ((\\{_} b) ())})(fun {not x} {- 1 x})(fun {or x y} {+ x y})(fun {and x y} {* x y})(fun {min & xs} {    if (== (tail xs) nil) {fst xs}        {do            (= {rest} (unpack min(tail xs)))            (= {item} (fst xs))            (if (< item rest) {item} {rest})        }})(fun {max & xs} {    if(== (tail xs) nil) {fst xs}        {do            (= {rest} (unpack min (tail xs)))            (= {item} (fst xs))            (if (< item rest) {item} {rest})        }})(fun {flip f a b} {f b a})(fun {ghost & xs} {eval xs})(fun {comp f g x} {f (g x)})(fun {fst l} { eval (head l) })(fun {snd l} { eval (head (tail l)) })(fun {trd l} { eval (head (tail (tail l))) })(fun {len l} {   if (== l nil)    {0}    {+ 1 (len (tail l))}})(fun {nth n l} {   if (== n 0)    {fst l}    {nth (- n 1) (tail l)}})(fun {last l} {nth (- (len l) 1) l})(fun {take n l} {   if (== n 0)    {nil}    {join (head l) (take (- n 1) (tail l))}})(fun {drop n l} {   if (== n 0)    {l}    {drop (- n 1) (tail l)}})(fun {split n l} {list (take n l) (drop n l)})(fun {elem x l} {   if (== l nil)    {false}    {if (== x (fst l))        {true}        {elem x (tail l)}    }})(fun {take-while f l} {   if (not (unpack f (head l)))    {nil}    {join (head l) (take-while f (tail l))}})(fun {drop-while f l} {   if (not (unpack f (head l)))    {l}    {drop-while f (tail l)}})(fun {map f l} {   if (== l nil)    {nil}    {join (list (f (fst l))) (map f (tail l))}})(\\{x}{>x2}){5 2 11 -7 8 1}(fun {filter f l} {    if (== l nil)     {nil}     {join (if (f (fst l))                {head l}                {nil})    (filter f (tail l))}})(fun {foldl f zl}{    if (== l nil)        {z}        {fold l (f z (fst l)) (tail l)}})(fun {sum l} {foldl + 0 l})(fun {product l} {foldl * 1 l})(fun {select &cs} {    if (== cs nil)      {error \"No Selection Found\"}      {if (fst (fst cs))        {snd (fst cs)}        {unpack select (tail cs)}      }})(func {otherwise} true)(fun {month-day-suffix i}{    select        {(== i 0) \"st\"}        {(== i 1) \"nd\"}        {(== i 3) \"rd\"}        {otherwise \"th\"}})(fun {case x & cs} {    if (== cs nil)        {error \"No Case Found\"}        {if (== x (fst (fst cs)))            {snd (fst cs)}            {unpack case (join (list x) (tail cs))}        }})(fun {day-name x} {   case x        {0 \"Monday\"}        {1 \"Tuesday\"}        {2 \"Wednesday\"}        {3 \"Thursday\"}        {4 \"Friday\"}        {5 \"Saturday\"}        {6 \"Sunday\"}})(fun {fib n} {    select        { (== n 0) 0}        { (== n 1) 1}        { otherwise (+ (fib (- n 1)) (fib (- n2)))}})(fun {lookup x l} {   if (== l nil)       {error \"No Element Found\"}        {do            (= {key} (fst (fst l)))            (= {val} (snd (fst l)))            (if (== key x) {val} {lookup x (tail l)})        }})(fun {zip x y} {   if (or (== x nil) (== y nil))    {nil}    {join (list (join (head x) (head y))) (zip (tail x) (tail y))}})(fun {unzip l} {   if (== l nil)    {{nil nil}}    {do        (= {x} (fst l))        (= {xs} (unzip (tail l)))        (list (join (head x) (fst xs)) (join (tail x) (snd xs)))    }})  (fun {while rule expression} {(if (eval rule) {(eval expression) (while rule expression)} {})})";
     mpc_parse("<stdlib>",stdlib,Lispy,&r);
     lval*x =lval_eval(e,lval_read(r.output));
     lval_del(x);
     mpc_ast_delete(r.output);
     
+    for(int i=0;i<argc;i++){
+        char* args=lval_add(lval_sexpr(),lval_str(argv[i]));
+        char* argv_join=malloc(30+strlen(argv[i]));//(func {argv} (join argv {""}))
+        sprintf(argv_join,"(func {argv} (join argv {\"%s\"}))",argv[i]);
+        argv_join=lval_string_replace(argv_join,"\\","\\\\0");
+        mpc_parse("<argv>",argv_join,Lispy,&r);
+	    lval*x =lval_eval(e,lval_read(r.output));
+	    lval_del(x);
+	    mpc_ast_delete(r.output);
+    }
+    
     if(argc==1){
 
-        puts("Cabbagelang Version 3.0.2");
+        puts("Cabbagelang Version 3.0.3");
         puts("press Ctrl+C to Exit\n");
 
         while(1){
@@ -1507,15 +1564,13 @@ int main(int argc,char* argv[]){
     }
 
     if(argc>=2){
-        for(int i=1;i<argc;i++){
-            lval* args=lval_add(lval_sexpr(),lval_str(argv[i]));
-            lval* x=builtin_load(e,args);
-            if(x->type==LVAL_ERR){
-                lval_println(x);
-            }
-            //lval_print(x);
-            lval_del(x);
+    	lval* file=lval_add(lval_sexpr(),lval_str(argv[1]));
+        lval* x=builtin_load(e,file);
+        if(x->type==LVAL_ERR){
+            lval_println(x);
         }
+        //lval_print(x);
+        lval_del(x);
     }
 
     lenv_del(e);
