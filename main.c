@@ -955,8 +955,9 @@ lval* builtin_argv(lenv* e,lval* a){
 	if(a->cell[0]->num>=argc_glob){
 		return lval_sexpr(); 
 	}
-	
-	lval*x=lval_str(argv_list[(int)a->cell[0]->num]);
+	char* _=argv_list[(int)a->cell[0]->num];
+	_=lval_string_replace(_,"\\","\\\\0");
+	lval*x=lval_str(_);
     lval_del(a);
     return x;
 }
@@ -969,7 +970,9 @@ lval* builtin_env(lenv* e,lval* a){
 		return lval_sexpr(); 
 	}
 	
-	lval*x=lval_str(env_list[(int)a->cell[0]->num]);
+	char* _=env_list[(int)a->cell[0]->num];
+	_=lval_string_replace(_,"\\","\\\0");
+	lval*x=lval_str(_);
     lval_del(a);
     return x;
 }
