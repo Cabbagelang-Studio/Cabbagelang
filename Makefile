@@ -1,11 +1,6 @@
-BIT = 32
-ifeq ($(BIT),32)
-	GCC_FLAG = -m32 -Os -ffunction-sections -fdata-sections -s -w -std=c11
-	ICO_FLAG = -F pe-i386
-else
-	GCC_FLAG = -Os -ffunction-sections -fdata-sections -s -w -std=c11
-	ICO_FLAG = 
-endif
+BIT = 64
+GCC_FLAG = -Os -ffunction-sections -fdata-sections -s -w -std=c11
+ICO_FLAG = 
 
 windows: cabbage.exe cabbagew.exe
 	@echo Done.
