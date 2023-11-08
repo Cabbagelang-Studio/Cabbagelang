@@ -12,7 +12,7 @@ This is the official repository of Cabbagelang Programming Language.
 
 ### Attention!
 
-- If you are on 64-bit system, you have to change `BIT` in `Makefile` to 64.
+- We have dropped 32-bit systems officially. If you are on one, please upgrade to a 64-bit system.
 
 ## Dependences
 
