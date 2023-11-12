@@ -1,18 +1,27 @@
 # Cabbagelang
 This is the official repository of Cabbagelang Programming Language.
 
-# Install
+## Installation
+
+### Compile
+
 > Windows
 
 `make windows`
 
-> Unix-like system
+> Unix-like system (Linux, MacOS, etc)
 
 `make unix`
 
-### Attention!
+## Install
 
-- If you are on 64-bit system, you have to change `BIT` in `Makefile` to 64.
+> Windows
+
+`install.bat`
+
+> Unix-like system (Linux, MacOS, etc)
+
+`./install.sh`
 
 ## Dependences
 

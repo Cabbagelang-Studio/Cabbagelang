@@ -1570,7 +1570,7 @@ int main(int argc,char* argv[],char* env[]){
     
     if(argc==1){
 
-        puts("Cabbagelang Version 3.0.3");
+        puts("Cabbagelang Version 3.1.0");
         puts("press Ctrl+C to Exit\n");
 
         while(1){
