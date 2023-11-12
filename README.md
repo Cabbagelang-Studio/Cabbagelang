@@ -21,6 +21,8 @@ This is the official repository of Cabbagelang Programming Language.
 
 > Unix-like system (Linux, MacOS, etc)
 
+`chmod +x ./install.sh`
+
 `./install.sh`
 
 ## Dependences
