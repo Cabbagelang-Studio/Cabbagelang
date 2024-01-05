@@ -536,6 +536,8 @@ void lval_print_str(lval* v){
     escaped=lval_string_replace(escaped,"\\b","\b");
     escaped=lval_string_replace(escaped,"\\f","\f");
     escaped=lval_string_replace(escaped,"\\0","\0");
+    escaped=lval_string_replace(escaped,"\\\"","\"");
+    escaped=lval_string_replace(escaped,"\\\'","\'");
     printf("%s",escaped);
     free(escaped);
 }

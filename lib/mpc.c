@@ -1356,9 +1356,14 @@ int mpc_parse_contents(const char *filename, mpc_parser_t *p, mpc_result_t *r) {
   int res;
 
   if (f == NULL) {
-    r->output = NULL;
-    r->error = mpc_err_file(filename, "Unable to open file!");
-    return 0;
+  	char* new_filename=malloc(strlen(getenv("CABBAGELANG_HOME"))+strlen(filename)+8);
+  	sprintf(new_filename,"%s/leaves/%s",getenv("CABBAGELANG_HOME"),filename);
+  	f = fopen(new_filename, "rb");
+    if (f == NULL) {
+    	r->output = NULL;
+	    r->error = mpc_err_file(filename, "Unable to open file!");
+	    return 0;
+	}
   }
 
   res = mpc_parse_file(filename, f, p, r);
