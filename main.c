@@ -1213,15 +1213,18 @@ lval* builtin_load(lenv* e,lval* a){
 }
 
 lval* builtin_cs(lenv* e,lval* a){
-	LASSERT_NUM(".",a,2);
-	LASSERT_TYPE(".",a,0,LVAL_STR);
-	LASSERT_TYPE(".",a,1,LVAL_STR);
-	char *x = (char *) malloc(strlen(a->cell[0]->str) + strlen(a->cell[1]->str));
-    strcpy(x, a->cell[0]->str);
-    strcat(x, a->cell[1]->str);
-    lval_del(a);
-    lval* result=lval_str(x);
-    return result;
+	int length=1;
+	for(int i=0;i<a->count;i++){
+		length+=strlen(a->cell[i]->str);
+        LASSERT_TYPE(".",a,i,LVAL_STR);
+    }
+    char x[length];
+    strcpy(x,a->cell[0]->str);
+    for(int i=1;i<a->count;i++){
+    	strcat(x,a->cell[i]->str);
+	}
+	lval_del(a);
+	return lval_str(x);
 }
 lval* builtin_substr(lenv* e,lval* a){
 	LASSERT_NUM("!",a,2);
