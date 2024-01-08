@@ -1215,8 +1215,8 @@ lval* builtin_load(lenv* e,lval* a){
 lval* builtin_cs(lenv* e,lval* a){
 	int length=1;
 	for(int i=0;i<a->count;i++){
-		length+=strlen(a->cell[i]->str);
         LASSERT_TYPE(".",a,i,LVAL_STR);
+		length+=strlen(a->cell[i]->str);
     }
     char x[length];
     strcpy(x,a->cell[0]->str);
