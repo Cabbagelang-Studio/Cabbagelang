@@ -717,7 +717,7 @@ lval* lval_call(lenv* e,lval* f,lval* a){
 lval* http_request(const char* hostname,int port,const char* request){
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
-        return lval_num(1);
+        return lval_err("WSAStartup failed: %s",WSAGetLastError());
     }
     SOCKET Socket=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
     struct hostent *host;
@@ -727,7 +727,8 @@ lval* http_request(const char* hostname,int port,const char* request){
     SockAddr.sin_family=AF_INET;
     SockAddr.sin_addr.s_addr = *((unsigned long*)host->h_addr);
     if(connect(Socket,(SOCKADDR*)(&SockAddr),sizeof(SockAddr)) != 0){
-        return lval_num(1);
+    	WSACleanup();
+        return lval_err("Error creating socket: %s",WSAGetLastError());
     }
     send(Socket,request, strlen(request),0);
     char* x=malloc(1*sizeof(char));
@@ -735,19 +736,20 @@ lval* http_request(const char* hostname,int port,const char* request){
     char buffer[1024];
     int nDataLength;
     while ((nDataLength = recv(Socket,buffer,1024,0)) > 0){        
-        int i = 0;
-        while (buffer[i] >= 32 || buffer[i] == '\n' || buffer[i] == '\r') {
+        for (int i=0;buffer[i] >= 32 || buffer[i] == '\n' || buffer[i] == '\r';i++) {
             char* tmp=x;
-	        x=malloc((strlen(x)+2)*sizeof(char)+3);
+	        x=malloc((strlen(x)+2)*sizeof(char));
 	        strcpy(x,tmp);
 	        char character[2]={buffer[i],'\0'};
 	        strcat(x,character);
-            i += 1;
         }
     }
     closesocket(Socket);
-        WSACleanup();
-    return lval_str(x);
+    WSACleanup();
+    char result[strlen(x)];
+    strcpy(result,x);
+    free(x);
+    return lval_str(result);
 }
 #else
 
