@@ -5,8 +5,13 @@
 #include <unistd.h>
 #include <malloc.h>
 #include"./lib/mpc.h"
+#include"./lib/stringx.h"
+#ifdef _WIN32
 #define HTTP_IMPLEMENTATION
 #include"./lib/http.h"
+#else
+#include"./lib/urlparser.h"
+#endif
 
 int argc_glob;
 int env_length=0;
@@ -798,7 +803,7 @@ char* http_request(const char* hostname,int port,const char* request){
     char* ip=host_to_ip(hostname);
     int sockfd=http_create_socket(ip,port);
  
-    char buffer[BUFFER_SIZE]={0};
+    char buffer[BUFFER_SIZE];
  
     send(sockfd,request,strlen(request),0);
  
@@ -1458,6 +1463,7 @@ lval* builtin_request(lenv* e,lval* a){
 	return lval_str(result);
 }
 #endif
+#ifdef _WIN32
 lval* builtin_get_request(lenv* e,lval* a){
 	LASSERT_NUM("get_request",a,1);
 	LASSERT_TYPE("get_request",a,0,LVAL_STR);
@@ -1524,6 +1530,133 @@ lval* builtin_post_request(lenv* e,lval* a){
 	lval_del(a);
 	return lval_str(x);
 }
+#else
+lval* builtin_get_request(lenv* e,lval* a){
+	LASSERT_NUM("get_request",a,1);
+	LASSERT_TYPE("get_request",a,0,LVAL_STR);
+	char* url=a->cell[0]->str;
+	parsed_url* purl=parse_url(url);
+	if(purl==NULL){
+		lval_del(a);
+		return lval_err("Unable to parse url.");
+	}
+	/* Declare variable */
+	char *http_headers = (char*)malloc(1024);
+
+	/* Build query/headers */
+	if(purl->path != NULL)
+	{
+		if(purl->query != NULL)
+		{
+			sprintf(http_headers, "GET /%s?%s HTTP/1.1\r\nHost:%s\r\nConnection:close\r\n", purl->path, purl->query, purl->host);
+		}
+		else
+		{
+			sprintf(http_headers, "GET /%s HTTP/1.1\r\nHost:%s\r\nConnection:close\r\n", purl->path, purl->host);
+		}
+	}
+	else
+	{
+		if(purl->query != NULL)
+		{
+			sprintf(http_headers, "GET /?%s HTTP/1.1\r\nHost:%s\r\nConnection:close\r\n", purl->query, purl->host);
+		}
+		else
+		{
+			sprintf(http_headers, "GET / HTTP/1.1\r\nHost:%s\r\nConnection:close\r\n", purl->host);
+		}
+	}
+
+	/* Handle authorisation if needed */
+	if(purl->username != NULL)
+	{
+		/* Format username:password pair */
+		char *upwd = (char*)malloc(1024);
+		sprintf(upwd, "%s:%s", purl->username, purl->password);
+		upwd = (char*)realloc(upwd, strlen(upwd) + 1);
+
+		/* Base64 encode */
+		char *base64 = base64_encode(upwd);
+
+		/* Form header */
+		char *auth_header = (char*)malloc(1024);
+		sprintf(auth_header, "Authorization: Basic %s\r\n", base64);
+		auth_header = (char*)realloc(auth_header, strlen(auth_header) + 1);
+
+		/* Add to header */
+		http_headers = (char*)realloc(http_headers, strlen(http_headers) + strlen(auth_header) + 2);
+		sprintf(http_headers, "%s%s", http_headers, auth_header);
+	}
+	http_headers = (char*)realloc(http_headers, strlen(http_headers) + 1);
+	char* result=http_request(purl->ip,purl->port,http_headers);
+	lval_del(a);
+	return lval_str(result);
+}
+lval* builtin_post_request(lenv* e,lval* a){
+	LASSERT_NUM("post_request",a,2);
+	LASSERT_TYPE("post_request",a,0,LVAL_STR);
+	LASSERT_TYPE("post_request",a,1,LVAL_STR);
+	char* url=a->cell[0]->str;
+	parsed_url* purl=parse_url(url);
+	if(purl==NULL){
+		lval_del(a);
+		return lval_err("Unable to parse url.");
+	}
+	/* Declare variable */
+	char *http_headers = (char*)malloc(1024);
+
+	/* Build query/headers */
+	if(purl->path != NULL)
+	{
+		if(purl->query != NULL)
+		{
+			sprintf(http_headers, "POST /%s?%s HTTP/1.1\r\nHost:%s\r\nConnection:close\r\nContent-Length:%zu\r\nContent-Type:application/x-www-form-urlencoded\r\n", purl->path, purl->query, purl->host, strlen(post_data));
+		}
+		else
+		{
+			sprintf(http_headers, "POST /%s HTTP/1.1\r\nHost:%s\r\nConnection:close\r\nContent-Length:%zu\r\nContent-Type:application/x-www-form-urlencoded\r\n", purl->path, purl->host, strlen(post_data));
+		}
+	}
+	else
+	{
+		if(purl->query != NULL)
+		{
+			sprintf(http_headers, "POST /?%s HTTP/1.1\r\nHost:%s\r\nConnection:close\r\nContent-Length:%zu\r\nContent-Type:application/x-www-form-urlencoded\r\n", purl->query, purl->host, strlen(post_data));
+		}
+		else
+		{
+			sprintf(http_headers, "POST / HTTP/1.1\r\nHost:%s\r\nConnection:close\r\nContent-Length:%zu\r\nContent-Type:application/x-www-form-urlencoded\r\n", purl->host, strlen(post_data));
+		}
+	}
+
+	/* Handle authorisation if needed */
+	if(purl->username != NULL)
+	{
+		/* Format username:password pair */
+		char *upwd = (char*)malloc(1024);
+		sprintf(upwd, "%s:%s", purl->username, purl->password);
+		upwd = (char*)realloc(upwd, strlen(upwd) + 1);
+
+		/* Base64 encode */
+		char *base64 = base64_encode(upwd);
+
+		/* Form header */
+		char *auth_header = (char*)malloc(1024);
+		sprintf(auth_header, "Authorization: Basic %s\r\n", base64);
+		auth_header = (char*)realloc(auth_header, strlen(auth_header) + 1);
+
+		/* Add to header */
+		http_headers = (char*)realloc(http_headers, strlen(http_headers) + strlen(auth_header) + 2);
+		sprintf(http_headers, "%s%s", http_headers, auth_header);
+	}
+	
+	http_headers = (char*)realloc(http_headers, strlen(http_headers) + 1);
+	
+	char* result=http_request(purl->ip,purl->port,http_headers);
+	lval_del(a);
+	return lval_str(result);
+}
+#endif
 void lenv_add_builtins(lenv* e){
 
     lenv_add_builtin(e,"\\",builtin_lambda);
