@@ -1535,7 +1535,7 @@ lval* builtin_get_request(lenv* e,lval* a){
 	LASSERT_NUM("get_request",a,1);
 	LASSERT_TYPE("get_request",a,0,LVAL_STR);
 	char* url=a->cell[0]->str;
-	parsed_url* purl=parse_url(url);
+	struct parsed_url* purl=parse_url(url);
 	if(purl==NULL){
 		lval_del(a);
 		return lval_err("Unable to parse url.");
@@ -1597,7 +1597,8 @@ lval* builtin_post_request(lenv* e,lval* a){
 	LASSERT_TYPE("post_request",a,0,LVAL_STR);
 	LASSERT_TYPE("post_request",a,1,LVAL_STR);
 	char* url=a->cell[0]->str;
-	parsed_url* purl=parse_url(url);
+	char* post_data=a->cell[1]->str;
+	struct parsed_url* purl=parse_url(url);
 	if(purl==NULL){
 		lval_del(a);
 		return lval_err("Unable to parse url.");
