@@ -64,6 +64,7 @@ void parsed_url_free(struct parsed_url *purl)
 /*
 	Retrieves the IP adress of a hostname
 */
+/*
 char* hostname_to_ip(char *hostname)
 {
 	char *ip = "0.0.0.0";
@@ -75,7 +76,7 @@ char* hostname_to_ip(char *hostname)
 	}
 	return inet_ntoa(*((struct in_addr *)h->h_addr));
 }
-
+*/
 /*
 	Check whether the character is permitted in scheme string
 */
@@ -316,8 +317,9 @@ struct parsed_url *parse_url(const char *url)
 	}
 	
 	/* Get ip */
-	char *ip = hostname_to_ip(purl->host);
-	purl->ip = ip;
+	//Causes compilation error, and it can be unused.
+	//char *ip = hostname_to_ip(purl->host);
+	purl->ip = purl->host;
 	
 	/* Set uri */
 	purl->uri = (char*)url;
