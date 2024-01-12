@@ -5,11 +5,15 @@
 #include <unistd.h>
 #include <malloc.h>
 #include"./lib/mpc.h"
+#define HTTP_IMPLEMENTATION
+#include"./lib/http.h"
 
 int argc_glob;
 int env_length=0;
 char** argv_list;
 char** env_list;
+
+int BUFFER_SIZE=4096;
 
 #ifdef _WIN32
 #include<string.h>
@@ -733,9 +737,9 @@ lval* http_request(const char* hostname,int port,const char* request){
     send(Socket,request, strlen(request),0);
     char* x=malloc(1*sizeof(char));
     x="\0";
-    char buffer[1024];
+    char buffer[BUFFER_SIZE];
     int nDataLength;
-    while ((nDataLength = recv(Socket,buffer,1024,0)) > 0){        
+    while ((nDataLength = recv(Socket,buffer,BUFFER_SIZE,0)) > 0){        
         for (int i=0;buffer[i] >= 32 || buffer[i] == '\n' || buffer[i] == '\r';i++) {
             char* tmp=x;
 	        x=malloc((strlen(x)+2)*sizeof(char));
@@ -762,8 +766,6 @@ lval* http_request(const char* hostname,int port,const char* request){
 #include<unistd.h>
 #include<netdb.h>
 #include <fcntl.h>
-
-#define BUFFER_SIZE 4096
 
 
 char* host_to_ip(const char* hostname){
@@ -831,6 +833,14 @@ char* http_request(const char* hostname,int port,const char* request){
 }
 
 #endif
+
+lval* builtin_buffer(lenv* e,lval* a){
+	LASSERT_NUM("buffer",a,1);
+	LASSERT_TYPE("buffer",a,0,LVAL_NUM);
+	BUFFER_SIZE=a->cell[0]->num;
+	lval_del(a);
+	return lval_num(0);
+}
 
 lval* builtin_error(lenv* e,lval* a){
     LASSERT_NUM("throw", a, 1);
@@ -1430,7 +1440,9 @@ lval* builtin_request(lenv* e,lval* a){
 	LASSERT_TYPE("request",a,0,LVAL_STR);
 	LASSERT_TYPE("request",a,1,LVAL_NUM);
 	LASSERT_TYPE("request",a,2,LVAL_STR);
-	return http_request(a->cell[0]->str,a->cell[1]->num,a->cell[2]->str);
+	lval* result=http_request(a->cell[0]->str,a->cell[1]->num,a->cell[2]->str);
+	lval_del(a);
+	return result;
 }
 #else
 lval* builtin_request(lenv* e,lval* a){
@@ -1442,9 +1454,76 @@ lval* builtin_request(lenv* e,lval* a){
 	int port=a->cell[1]->num;
 	char* request=a->cell[2]->str; 
 	char* result=http_request(hostname,port,request);
+	lval_del(a);
 	return lval_str(result);
 }
 #endif
+lval* builtin_get_request(lenv* e,lval* a){
+	LASSERT_NUM("get_request",a,1);
+	LASSERT_TYPE("get_request",a,0,LVAL_STR);
+	char const* request_url=a->cell[0]->str;
+	http_t* request = http_get(request_url, NULL );
+	if( !request ){
+		lval_del(a);
+		return lval_err("Invalid request.");
+	}
+
+	http_status_t status = HTTP_STATUS_PENDING;
+	int prev_size = -1;
+	while( status == HTTP_STATUS_PENDING ){
+		status = http_process( request );
+		if( prev_size != (int) request->response_size ){
+			prev_size = (int) request->response_size;
+		}
+	}
+
+	if( status == HTTP_STATUS_FAILED ){
+		int status=request->status_code;
+		http_release( request );
+		lval_del(a);
+		return lval_err("HTTP request failed (%d): %s.\n", status, request->reason_phrase);
+	}
+	char x[19+strlen(request->content_type)+strlen(request->response_data)];
+	sprintf(x, "\nContent type: %s\n\n%s\n", request->content_type, (char const*)request->response_data );
+	http_release(request);
+	lval_del(a);
+	return lval_str(x);
+}
+lval* builtin_post_request(lenv* e,lval* a){
+	LASSERT_NUM("post_request",a,3);
+	LASSERT_TYPE("post_request",a,0,LVAL_STR);
+	LASSERT_TYPE("post_request",a,1,LVAL_STR);
+	LASSERT_TYPE("post_request",a,2,LVAL_NUM);
+	char const* request_url=a->cell[0]->str;
+	char const* request_data=a->cell[1]->str;
+	int request_size=a->cell[2]->num;
+	http_t* request = http_post(request_url, request_data, request_size ,NULL);
+	if( !request ){
+		lval_del(a);
+		return lval_err("Invalid request.");
+	}
+
+	http_status_t status = HTTP_STATUS_PENDING;
+	int prev_size = -1;
+	while( status == HTTP_STATUS_PENDING ){
+		status = http_process( request );
+		if( prev_size != (int) request->response_size ){
+			prev_size = (int) request->response_size;
+		}
+	}
+
+	if( status == HTTP_STATUS_FAILED ){
+		int status=request->status_code;
+		http_release( request );
+		lval_del(a);
+		return lval_err("HTTP request failed (%d): %s.\n", status, request->reason_phrase);
+	}
+	char x[19+strlen(request->content_type)+strlen(request->response_data)];
+	sprintf(x, "\nContent type: %s\n\n%s\n", request->content_type, (char const*)request->response_data );
+	http_release(request);
+	lval_del(a);
+	return lval_str(x);
+}
 void lenv_add_builtins(lenv* e){
 
     lenv_add_builtin(e,"\\",builtin_lambda);
@@ -1509,6 +1588,9 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "rand", builtin_rand);
     lenv_add_builtin(e, "delay", builtin_delay);
     lenv_add_builtin(e, "request", builtin_request);
+    lenv_add_builtin(e, "get_request", builtin_get_request);
+    lenv_add_builtin(e, "post_request", builtin_post_request);
+    lenv_add_builtin(e, "buffer", builtin_buffer);
 }
 
 int main(int argc,char* argv[],char* env[]){
@@ -1577,7 +1659,7 @@ int main(int argc,char* argv[],char* env[]){
     
     if(argc==1){
 
-        puts("Cabbagelang Version 3.1.0");
+        puts("Cabbagelang Version 3.1.1");
         puts("press Ctrl+C to Exit\n");
 
         while(1){
