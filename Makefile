@@ -19,14 +19,14 @@ endif
 
 unix: cabbage
 	@echo "$(BIT)-bit compiled successfully."
-cabbage: main.c lib/mpc.c
-	gcc main.c lib/mpc.c -o cabbage $(GCC_FLAG) -lm -lreadline
+cabbage: main.c
+	gcc main.c -o cabbage $(GCC_FLAG) -lm -lreadline
 
 cabbage.ico.o: cabbage.rc
 	windres cabbage.rc -o cabbage.ico.o $(ICO_FLAG)
 windows: cabbage.exe cabbagew.exe
 	@echo $(BIT)-bit compiled successfully.
-cabbage.exe: main.c lib/mpc.c cabbage.ico.o cabbagew.exe
-	gcc main.c lib/mpc.c cabbage.ico.o -o cabbage $(GCC_FLAG) -lws2_32 -static
-cabbagew.exe: main.c lib/mpc.c cabbage.ico.o
-	gcc main.c lib/mpc.c cabbage.ico.o -o cabbagew $(GCC_FLAG) -mwindows  -lws2_32 -static
+cabbage.exe: main.c cabbage.ico.o cabbagew.exe
+	gcc main.c cabbage.ico.o -o cabbage $(GCC_FLAG) -lws2_32 -static
+cabbagew.exe: main.c cabbage.ico.o
+	gcc main.c cabbage.ico.o -o cabbagew $(GCC_FLAG) -mwindows  -lws2_32 -static
