@@ -4,7 +4,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <malloc.h>
-#include"../lib/mpc.h"
+#include"mpc.h"
 
 int argc_glob;
 int env_length=0;
@@ -1464,6 +1464,39 @@ lval* builtin_request(lenv* e,lval* a){
 	return lval_str(result);
 }
 #endif
+#ifdef _WIN32
+lval* builtin_calldl(lenv* e,lval* a){
+	LASSERT_TYPE("calldl",a,0,LVAL_STR);
+	LASSERT_TYPE("calldl",a,1,LVAL_STR);
+	typedef lval* (*DLFunction)(lenv* e,lval* a);
+	HINSTANCE DL=LoadLibrary(a->cell[0]->str);
+	lval* arguments=lval_sexpr();
+	for(int i=2;i<a->count;i++){
+		lval_add(arguments,a->cell[i]);
+	}
+	DLFunction DLFun=(DLFunction)GetProcAddress(DL,a->cell[1]->str);
+	lval* dl_result=DLFun(e,arguments);
+	FreeLibrary(DL);
+	return dl_result;
+}
+#else
+#include<dlfcn.h>
+
+lval* builtin_calldl(lenv* e,lval* a){
+	LASSERT_TYPE("calldl",a,0,LVAL_STR);
+	LASSERT_TYPE("calldl",a,1,LVAL_STR);
+	lval* (*DLFun)(lenv* e,lval* a);
+	void* DL=dlopen(a->cell[0]->str,RTLD_LAZY);
+	lval* arguments=lval_sexpr();
+	for(int i=2;i<a->count;i++){
+		lval_add(arguments,a->cell[i]);
+	}
+	DLFun=dlsym(DL,a->cell[1]->str);
+	lval* dl_result=DLFun(e,arguments);
+	dlclose(DL);
+	return dl_result;
+}
+#endif
 void lenv_add_builtins(lenv* e){
 
     lenv_add_builtin(e,"\\",builtin_lambda);
@@ -1528,6 +1561,7 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "rand", builtin_rand);
     lenv_add_builtin(e, "delay", builtin_delay);
     lenv_add_builtin(e, "request", builtin_request);
+    lenv_add_builtin(e, "calldl", builtin_calldl);
 }
 
 lenv* Cabbagelang_initialize(int argc,char* argv[],char* env[]){
@@ -1602,3 +1636,17 @@ void Cabbagelang_finalize(lenv* e){
     mpc_cleanup(10,Int,Float,Number,Symbol,String,
                 Comment,Sexpr,Qexpr,Expr,Lispy);
 } 
+
+lval* Cabbagelang_load_string(lenv* e, char* input, char* filename){
+	mpc_result_t r;
+	mpc_parse(filename, input, Lispy, &r);
+	lval*x =lval_eval(e,lval_read(r.output));
+	return x;
+}
+
+lval* Cabbagelang_load_file(lenv* e, char* filename){
+	lval* file=lval_add(lval_sexpr(),lval_str(filename));
+    lval* x=builtin_load(e,file);
+    return x;
+}
+

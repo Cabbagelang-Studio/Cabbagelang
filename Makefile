@@ -30,3 +30,6 @@ cabbage.exe: main.c cabbage.ico.o cabbagew.exe
 	gcc main.c cabbage.ico.o -o cabbage $(GCC_FLAG) -lws2_32 -static
 cabbagew.exe: main.c cabbage.ico.o
 	gcc main.c cabbage.ico.o -o cabbagew $(GCC_FLAG) -mwindows  -lws2_32 -static
+
+clean:
+	rm -f cabbage.exe cabbagew.exe cabbage cabbage.ico.o
