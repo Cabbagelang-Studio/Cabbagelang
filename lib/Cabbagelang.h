@@ -1494,7 +1494,8 @@ lval* builtin_calldl(lenv* e,lval* a){
 	DLFun=dlsym(DL,a->cell[1]->str);
 	lval* dl_result=DLFun(e,arguments);
 	dlclose(DL);
-	return dl_result;
+	lval* result=dl_result;
+	return result;
 }
 #endif
 void lenv_add_builtins(lenv* e){
