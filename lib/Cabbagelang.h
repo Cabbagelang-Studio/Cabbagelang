@@ -4,12 +4,18 @@
 #include <time.h>
 #include <unistd.h>
 #include <malloc.h>
+#include <stdint.h>
 #include"mpc.h"
+#define  THREAD_IMPLEMENTATION
+#include"thread.h"
 
 int argc_glob;
 int env_length=0;
 char** argv_list;
 char** env_list;
+
+thread_ptr_t* thread_list=NULL;
+int thread_list_index=0;
 
 #ifdef _WIN32
 #include<string.h>
@@ -95,6 +101,7 @@ struct lenv{
     lval** vals;
 };
 
+lenv* CABBAGELANG_DEFAULT_ENVIRONMENT; 
 
 char* ltype_name(int t){
     switch(t){
@@ -1498,6 +1505,40 @@ lval* builtin_calldl(lenv* e,lval* a){
 	return result;
 }
 #endif
+
+lval* thread_proc(void* param){
+	lval* Cabbagelang_load_string(lenv*,char*,char*);
+	lval* result=builtin_eval(CABBAGELANG_DEFAULT_ENVIRONMENT,param);
+	return result;
+}
+
+lval* builtin_cthread(lenv* e,lval* a){
+	LASSERT_NUM("cthread",a,1);
+	LASSERT_TYPE("cthread",a,0,LVAL_QEXPR);
+	thread_ptr_t thread=thread_create(thread_proc, a, THREAD_STACK_SIZE_DEFAULT );
+	thread_list=realloc(thread_list,(thread_list_index+1)*sizeof(thread_ptr_t));
+	thread_list[thread_list_index]=thread;
+	int index=thread_list_index++;
+	return lval_num(index);
+}
+
+lval* builtin_jthread(lenv* e,lval* a){
+	LASSERT_NUM("jthread",a,1);
+	LASSERT_TYPE("jthread",a,0,LVAL_NUM);
+	if(a->cell[0]->num>=thread_list_index||(int)thread_list[(int)a->cell[0]->num]==NULL) return lval_err("Unable to open thread %d.",(int)a->cell[0]->num);
+	lval* result=thread_join(thread_list[(int)a->cell[0]->num]);
+	return result;
+}
+
+lval* builtin_dthread(lenv* e,lval* a){
+	LASSERT_NUM("dthread",a,1);
+	LASSERT_TYPE("dthread",a,0,LVAL_NUM);
+	if(a->cell[0]->num>=thread_list_index||(int)thread_list[(int)a->cell[0]->num]==NULL) return lval_err("Unable to open thread %d.",(int)a->cell[0]->num);
+	thread_destroy(thread_list[(int)a->cell[0]->num]);
+	thread_list[(int)a->cell[0]->num]=NULL;
+	return lval_sexpr();
+}
+
 void lenv_add_builtins(lenv* e){
 
     lenv_add_builtin(e,"\\",builtin_lambda);
@@ -1563,6 +1604,9 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "delay", builtin_delay);
     lenv_add_builtin(e, "request", builtin_request);
     lenv_add_builtin(e, "calldl", builtin_calldl);
+    lenv_add_builtin(e, "cthread", builtin_cthread);
+    lenv_add_builtin(e, "jthread", builtin_jthread);
+    lenv_add_builtin(e, "dthread", builtin_dthread);
 }
 
 lenv* Cabbagelang_initialize(int argc,char* argv[],char* env[]){
@@ -1617,9 +1661,12 @@ lenv* Cabbagelang_initialize(int argc,char* argv[],char* env[]){
     argv_list=argv;
     env_list=env;
     
+    thread_list=malloc(1*sizeof(thread_ptr_t));
+    
     for(;env_list[env_length];env_length++);
 
     lenv* e=lenv_new();
+    CABBAGELANG_DEFAULT_ENVIRONMENT=e;
     lenv_add_builtins(e);
     
     mpc_result_t r;
@@ -1636,6 +1683,7 @@ void Cabbagelang_finalize(lenv* e){
 	lenv_del(e);
     mpc_cleanup(10,Int,Float,Number,Symbol,String,
                 Comment,Sexpr,Qexpr,Expr,Lispy);
+    free(thread_list);
 } 
 
 lval* Cabbagelang_load_string(lenv* e, char* input, char* filename){

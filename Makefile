@@ -27,9 +27,9 @@ cabbage.ico.o: cabbage.rc
 windows: cabbage.exe cabbagew.exe
 	@echo $(BIT)-bit compiled successfully.
 cabbage.exe: main.c cabbage.ico.o cabbagew.exe
-	gcc main.c cabbage.ico.o -o cabbage $(GCC_FLAG) -lws2_32 -static
+	gcc main.c cabbage.ico.o -o cabbage $(GCC_FLAG) -lws2_32 -lwinmm -static
 cabbagew.exe: main.c cabbage.ico.o
-	gcc main.c cabbage.ico.o -o cabbagew $(GCC_FLAG) -mwindows  -lws2_32 -static
+	gcc main.c cabbage.ico.o -o cabbagew $(GCC_FLAG) -mwindows  -lws2_32 -lwinmm -static
 
 clean:
 	rm -f cabbage.exe cabbagew.exe cabbage cabbage.ico.o
