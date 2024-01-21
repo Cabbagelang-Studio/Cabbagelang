@@ -1,3 +1,5 @@
+//Modified by Cabbagelang Studio, for special usage. 
+
 /*
 ------------------------------------------------------------------------------
           Licensing information can be found at the end of the file.
@@ -28,9 +30,9 @@ void thread_set_high_priority( void );
 void thread_exit( int return_code );
 
 typedef void* thread_ptr_t;
-thread_ptr_t thread_create( int (*thread_proc)( void* ), void* user_data, int stack_size );
+thread_ptr_t thread_create( lval* (*thread_proc)( void* ), void* user_data, int stack_size );
 void thread_destroy( thread_ptr_t thread );
-int thread_join( thread_ptr_t thread );
+lval* thread_join( thread_ptr_t thread );
 int thread_detach( thread_ptr_t thread );
 
 typedef union thread_mutex_t thread_mutex_t;
@@ -679,7 +681,7 @@ void thread_exit( int return_code )
     }
 
 
-thread_ptr_t thread_create( int (*thread_proc)( void* ), void* user_data, int stack_size )
+thread_ptr_t thread_create( lval* (*thread_proc)( void* ), void* user_data, int stack_size )
     {
     #if defined( _WIN32 )
 
@@ -721,20 +723,20 @@ void thread_destroy( thread_ptr_t thread )
     }
 
 
-int thread_join( thread_ptr_t thread )
+lval* thread_join( thread_ptr_t thread )
     {
     #if defined( _WIN32 )
 
         WaitForSingleObject( (HANDLE) thread, INFINITE );
         DWORD retval;
         GetExitCodeThread( (HANDLE) thread, &retval );
-        return (int) retval;
+        return (lval*) retval;
     
     #elif defined( __linux__ ) || defined( __APPLE__ ) || defined( __ANDROID__ )
 
         void* retval;
         pthread_join( (pthread_t) thread, &retval );
-        return (int)(uintptr_t) retval;
+        return (lval*)(uintptr_t) retval;
 
     #else 
         #error Unknown platform.
