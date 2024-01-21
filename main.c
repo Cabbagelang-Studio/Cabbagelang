@@ -4,7 +4,7 @@ int main(int argc,char* argv[],char* env[]){
 	lenv* e=Cabbagelang_initialize(argc,argv,env);
     if(argc==1){
 
-        puts("Cabbagelang Version 3.1.0");
+        puts("Cabbagelang Version 3.1.1");
         puts("press Ctrl+C to Exit\n");
 
         while(1){
