@@ -1973,6 +1973,14 @@ lval* builtin_system(lenv* e,lval* a){
     return lval_sexpr();
 }
 
+lval* builtin_chdir(lenv* e,lval* a){
+	LASSERT_TYPE("chdir",a,0,LVAL_STR);
+	LASSERT_NUM("chdir",a,1);
+	chdir(a->cell[0]->str);
+	lval_del(a);
+	return lval_sexpr();
+}
+
 lval* builtin_getenv(lenv* e,lval* a){
 	LASSERT_NUM("getenv",a,1);
 	LASSERT_TYPE("getenv",a,0,LVAL_STR);
@@ -2271,6 +2279,7 @@ void lenv_add_builtins(lenv* e){
 	
     /* System Functions */
     lenv_add_builtin(e, "system", builtin_system);
+    lenv_add_builtin(e, "chdir", builtin_chdir);
     lenv_add_builtin(e, "argv", builtin_argv);
     lenv_add_builtin(e, "env", builtin_env);
     lenv_add_builtin(e, "kin", builtin_kin);
