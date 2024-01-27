@@ -1977,6 +1977,19 @@ lval* builtin_ats(lenv* e,lval* a){
 	return lval_str(string);
 }
 
+lval* builtin_sta(lenv* e,lval* a){
+	LASSERT_TYPE("sta",a,0,LVAL_STR);
+	LASSERT_NUM("sta",a,1);
+	char* string=a->cell[0]->str;
+	lval* array=lval_qexpr();
+	for(int i=0;i<strlen(string)+1;i++){
+		char character=string[i];
+		int ch_code=(int)character;
+		array=lval_add(array,lval_num(ch_code));
+	}lval_del(a);
+	return array;
+}
+
 lval* builtin_system(lenv* e,lval* a){
 	LASSERT_TYPE("system",a,0,LVAL_STR);
 	LASSERT_NUM("system",a,1);
@@ -2279,6 +2292,7 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "nts", builtin_nts);
     lenv_add_builtin(e, "stn", builtin_stn);
     lenv_add_builtin(e, "ats", builtin_ats);
+    lenv_add_builtin(e, "sta", builtin_sta);
     
     /* File Functions */
     lenv_add_builtin(e, "getall", builtin_getall);
