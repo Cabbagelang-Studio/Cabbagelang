@@ -1964,6 +1964,18 @@ lval* builtin_stn(lenv* e, lval* a){
 	LASSERT_NUM("stn",a,1);
     return lval_num(atof(a->cell[0]->str));
 }
+lval* builtin_ats(lenv* e,lval* a){
+	LASSERT_TYPE("ats",a,0,LVAL_QEXPR);
+	LASSERT_NUM("ats",a,1);
+	lval* v=lval_take(a,0);
+	char string[v->count];
+	for(int i=0;i<v->count;i++){
+		char character=v->cell[i]->num;
+		string[i]=character;
+	}
+	lval_del(a);
+	return lval_str(string);
+}
 
 lval* builtin_system(lenv* e,lval* a){
 	LASSERT_TYPE("system",a,0,LVAL_STR);
@@ -2025,7 +2037,7 @@ lval* builtin_kin(lenv* e,lval* a){
 }
 
 
-char *readfile(char *path, int *length)
+lval *readfile(char *path, int *length)
 {
 	FILE *pfile;
 	char *data;
@@ -2033,7 +2045,7 @@ char *readfile(char *path, int *length)
 	pfile = fopen(path, "rb");
 	if (pfile == NULL)
 	{
-		return NULL;
+		return lval_err("Unable to open file: %s.",path);
 	}
 	fseek(pfile, 0, SEEK_END);
 	*length = ftell(pfile);
@@ -2042,7 +2054,7 @@ char *readfile(char *path, int *length)
 	*length = fread(data, 1, *length, pfile);
 	data[*length] = '\0';
 	fclose(pfile);
-	return data;
+	return lval_str(data);
 }
 
 lval* builtin_getall(lenv* e,lval* a){
@@ -2266,6 +2278,7 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "strlen", builtin_strlen);
     lenv_add_builtin(e, "nts", builtin_nts);
     lenv_add_builtin(e, "stn", builtin_stn);
+    lenv_add_builtin(e, "ats", builtin_ats);
     
     /* File Functions */
     lenv_add_builtin(e, "getall", builtin_getall);
