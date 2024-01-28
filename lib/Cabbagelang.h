@@ -1214,17 +1214,6 @@ char *lval_string_replace(char *original_data, char *replaced, char *to)
 void lval_print_str(lval* v){
     char* escaped=(char*)malloc(strlen(v->str)+1);
     strcpy(escaped,v->str);
-    escaped=(char*)mpcf_escape(escaped);
-    escaped=lval_string_replace(escaped,"\\n","\n");
-    escaped=lval_string_replace(escaped,"\\r","\r");
-    escaped=lval_string_replace(escaped,"\\t","\t");
-    escaped=lval_string_replace(escaped,"\\v","\v");
-    escaped=lval_string_replace(escaped,"\\a","\a");
-    escaped=lval_string_replace(escaped,"\\b","\b");
-    escaped=lval_string_replace(escaped,"\\f","\f");
-    escaped=lval_string_replace(escaped,"\\0","\0");
-    escaped=lval_string_replace(escaped,"\\\"","\"");
-    escaped=lval_string_replace(escaped,"\\\'","\'");
     printf("%s",escaped);
     free(escaped);
 }
