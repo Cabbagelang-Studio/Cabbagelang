@@ -1971,8 +1971,87 @@ lval* builtin_sta(lenv* e,lval* a){
 	LASSERT_NUM("sta",a,1);
 	char* string=a->cell[0]->str;
 	lval* array=lval_qexpr();
-	for(int i=0;i<strlen(string)+1;i++){
+	for(int i=0;i<sizeof(string)/sizeof(char)+1;i++){
 		char character=string[i];
+		int ch_code=(int)character;
+		array=lval_add(array,lval_num(ch_code));
+	}lval_del(a);
+	return array;
+}
+
+char* encodeBase64(char* str,int len){
+	char base64[65] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	int encodeStrLen = 1 + (len/3)*4 ,k=0;
+	encodeStrLen += len%3 ? 4 : 0;
+    char* encodeStr = (char*)(malloc(sizeof(char)*encodeStrLen));
+    for(int i=0;i<len;i++){
+    	if(len - i >= 3){
+            encodeStr[k++] = base64[(unsigned char)str[i]>>2];
+    		encodeStr[k++] = base64[((unsigned char)str[i]&0x03)<<4 | (unsigned char)str[++i]>>4];
+    		encodeStr[k++] = base64[((unsigned char)str[i]&0x0f)<<2 | (unsigned char)str[++i]>>6];
+            encodeStr[k++] = base64[(unsigned char)str[i]&0x3f];
+    	}else if(len-i == 2){
+            encodeStr[k++] = base64[(unsigned char)str[i] >> 2];
+            encodeStr[k++] = base64[((unsigned char)str[i]&0x03) << 4 | ((unsigned char)str[++i] >> 4)];
+            encodeStr[k++] = base64[((unsigned char)str[i]&0x0f) << 2];
+            encodeStr[k++] = '=';
+    	}else{
+    		encodeStr[k++] = base64[(unsigned char)str[i] >> 2];
+            encodeStr[k++] = base64[((unsigned char)str[i] & 0x03) << 4];                                                                                                              //末尾补两个等于号
+            encodeStr[k++] = '=';
+            encodeStr[k++] = '=';
+    	}
+    }
+    encodeStr[k] = '\0';
+    return encodeStr;
+}
+char* decodeBase64(char* str,int len){
+	char base64[65] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    char ascill[129];
+    int k = 0;
+    for(int i=0;i<64;i++){
+        ascill[base64[i]] = k++;
+    }
+	int decodeStrlen = len / 4 * 3 + 1;
+	char* decodeStr = (char*)malloc(sizeof(char)*decodeStrlen);
+	k = 0;
+	for(int i=0;i<len;i++){
+        decodeStr[k++] = (ascill[str[i]] << 2) | (ascill[str[++i]] >> 4);
+		if(str[i+1] == '='){
+			break;
+		}
+        decodeStr[k++] = (ascill[str[i]] << 4) |  (ascill[str[++i]] >> 2);
+		if(str[i+1] == '='){
+			break;
+		}
+        decodeStr[k++] = (ascill[str[i]] << 6) | (ascill[str[++i]]);
+	}
+	decodeStr[k] = '\0';
+	return decodeStr;
+}
+
+lval* builitn_b64encode(lenv* e,lval* a){
+	LASSERT_TYPE("b64encode",a,0,LVAL_QEXPR);
+	LASSERT_NUM("b64encode",a,1);
+	lval* v=lval_take(a,0);
+	char string[v->count];
+	for(int i=0;i<v->count;i++){
+		char character=v->cell[i]->num;
+		string[i]=character;
+	}
+	char* encoded=encodeBase64(string,sizeof(string)/sizeof(char));
+	lval_del(a);
+	return lval_str(encoded);
+}
+
+lval* builtin_b64decode(lenv* e,lval* a){
+	LASSERT_TYPE("b64decode",a,0,LVAL_STR);
+	LASSERT_NUM("b64decode",a,1);
+	char* string=a->cell[0]->str;
+	char* decoded=decodeBase64(string,strlen(string));
+	lval* array=lval_qexpr();
+	for(int i=0;i<sizeof(decoded)/sizeof(char)+1;i++){
+		char character=decoded[i];
 		int ch_code=(int)character;
 		array=lval_add(array,lval_num(ch_code));
 	}lval_del(a);
@@ -2096,6 +2175,22 @@ lval* builtin_sizeof(lenv* e,lval* a){
 	pFile = fopen(a->cell[0]->str, "rb");
 	lval_del(a);
 	return lval_num(get_file_size(pFile));
+}
+lval* builtin_getbin(lenv* e,lval* a){
+	LASSERT_TYPE("getbin",a,0,LVAL_STR);
+	LASSERT_NUM("getbin",a,1);
+	FILE *pFile;
+	pFile = fopen(a->cell[0]->str, "rb");
+	if(pFile == NULL){
+		lval_del(a);
+		return lval_err("Unable to open file: %s.",a->cell[0]->str);
+	}
+	lval* result=lval_qexpr();
+	for(int i=0;i<get_file_size(pFile);i++){
+		result=lval_add(result,lval_num(fgetc(pFile)));
+	}
+	lval_del(a);
+	return result;
 }
 
 lval* builtin_stdin(lenv* e,lval* a){
@@ -2282,10 +2377,13 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "stn", builtin_stn);
     lenv_add_builtin(e, "ats", builtin_ats);
     lenv_add_builtin(e, "sta", builtin_sta);
+    lenv_add_builtin(e, "b64encode", builitn_b64encode);
+    lenv_add_builtin(e, "b64decode", builtin_b64decode);
     
     /* File Functions */
     lenv_add_builtin(e, "getall", builtin_getall);
     lenv_add_builtin(e, "sizeof", builtin_sizeof);
+    lenv_add_builtin(e, "getbin", builtin_getbin);
 	
 	/* Environment Functions */
 	lenv_add_builtin(e, "getenv", builtin_getenv); 
