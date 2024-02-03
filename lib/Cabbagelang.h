@@ -1389,6 +1389,7 @@ lval* lval_call(lenv* e,lval* f,lval* a){
 #ifdef _WIN32
 #include <winsock2.h>
 #include <windows.h>
+#include <wininet.h>
 
 lval* http_request(const char* hostname, int port, const char* request) {
     WSADATA wsaData;
@@ -1445,6 +1446,41 @@ lval* http_request(const char* hostname, int port, const char* request) {
     free(x);
 
     return result;
+}
+lval* download_file(const char *url, const char *destination) {
+    HINTERNET hInternet, hConnect;
+
+    hInternet = InternetOpen(L"Download", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
+    if (!hInternet) {
+        return lval_err("InternetOpen failed.");
+    }
+
+    hConnect = InternetOpenUrlA(hInternet, url, NULL, 0, INTERNET_FLAG_RELOAD, 0);
+    if (!hConnect) {
+        InternetCloseHandle(hInternet);
+        return lval_err("InternetOpenUrlA failed.");
+    }
+
+    FILE *file = fopen(destination, "wb");
+    if (!file) {
+        InternetCloseHandle(hConnect);
+        InternetCloseHandle(hInternet);
+        return lval_err("Failed to open file %s.",destination);
+    }
+
+    char buffer[4096];
+    DWORD bytesRead;
+
+    while (InternetReadFile(hConnect, buffer, sizeof(buffer), &bytesRead) && bytesRead > 0) {
+        fwrite(buffer, 1, bytesRead, file);
+    }
+
+    fclose(file);
+
+    InternetCloseHandle(hConnect);
+    InternetCloseHandle(hInternet);
+
+    return lval_sexpr();
 }
 #else
 
@@ -1523,6 +1559,83 @@ char* http_request(const char* hostname,int port,const char* request){
     }
     return result;
  
+}
+
+int parse_url(const char *url, char *host, char *port, char *path) {
+    // Parse the URL to get the host name, port, and path
+    if (sscanf(url, "http://%[^:]:%[^/]/%s", host, port, path) == 3) {
+        return 1; // Port specified in the URL
+    } else if (sscanf(url, "http://%[^/]/%s", host, path) == 2) {
+        strcpy(port, "80"); // Default port is 80
+        return 1;
+    } else {
+        return 0; // Invalid URL format
+    }
+}
+
+int download_file(const char *url, const char *destination) {
+    int sockfd, bytesRead;
+    FILE *file;
+    char buffer[BUFFER_SIZE];
+
+    struct sockaddr_in server_addr;
+    struct hostent *server;
+
+    char host[256], port[6], path[256];
+
+    if (!parse_url(url, host, port, path)) {
+        return 1;
+    }
+
+    // Create a socket
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        return 2;
+    }
+
+    // Resolve the host name
+    server = gethostbyname(host);
+    if (server == NULL) {
+        close(sockfd);
+        return 3;
+    }
+
+    // Set up server address structure
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, (char *)&server_addr.sin_addr.s_addr, server->h_length);
+    server_addr.sin_port = htons(atoi(port));
+
+    // Connect to the server
+    if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        close(sockfd);
+        return 4;
+    }
+
+    // Send HTTP GET request
+    char request[256];
+    sprintf(request, "GET /%s HTTP/1.1\r\nHost: %s:%s\r\n\r\n", path, host, port);
+    if (send(sockfd, request, strlen(request), 0) < 0) {
+        close(sockfd);
+        return 5;
+    }
+
+    // Open the file for writing
+    file = fopen(destination, "wb");
+    if (!file) {
+        close(sockfd);
+        return 6;
+    }
+
+    // Read data from the socket and write to the file
+    while ((bytesRead = recv(sockfd, buffer, BUFFER_SIZE, 0)) > 0) {
+        fwrite(buffer, 1, bytesRead, file);
+    }
+
+    fclose(file);
+    close(sockfd);
+
+    return 0;
 }
 
 #endif
@@ -1645,6 +1758,25 @@ lval* builtin_join(lenv* e,lval* a){
     }
     lval_del(a);
     return x;
+}
+
+lval* builtin_index(lenv* e,lval* a){
+	LASSERT_TYPE("index",a,0,LVAL_QEXPR);
+	LASSERT_TYPE("index",a,1,LVAL_NUM);
+	LASSERT_NUM("index",a,2);
+	lval* v=lval_take(a,0);
+	int num=a->cell[1]->num;
+	if(abs(num)>=v->count){
+		lval_del(a);
+		return lval_err("Out of range.");
+	}if(num<0){
+		lval_del(a);
+		return v->cell[v->count+num];
+	}else{
+		lval_del(a);
+		return v->cell[num];
+	}
+	
 }
 
 lval* builtin_argv(lenv* e,lval* a){
@@ -1971,7 +2103,7 @@ lval* builtin_sta(lenv* e,lval* a){
 	LASSERT_NUM("sta",a,1);
 	char* string=a->cell[0]->str;
 	lval* array=lval_qexpr();
-	for(int i=0;i<sizeof(string)/sizeof(char)+1;i++){
+	for(int i=0;i<_msize(string)/sizeof(char);i++){
 		char character=string[i];
 		int ch_code=(int)character;
 		array=lval_add(array,lval_num(ch_code));
@@ -2005,7 +2137,7 @@ char* encodeBase64(char* str,int len){
     encodeStr[k] = '\0';
     return encodeStr;
 }
-char* decodeBase64(char* str,int len){
+lval* decodeBase64(char* str,int len){
 	char base64[65] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     char ascill[129];
     int k = 0;
@@ -2026,8 +2158,12 @@ char* decodeBase64(char* str,int len){
 		}
         decodeStr[k++] = (ascill[str[i]] << 6) | (ascill[str[++i]]);
 	}
-	decodeStr[k] = '\0';
-	return decodeStr;
+	lval* array=lval_qexpr();
+	for(int i=0;i<k;i++){
+		char character=decodeStr[i];
+		int ch_code=(int)character;
+		array=lval_add(array,lval_num(ch_code));
+	}return array;
 }
 
 lval* builitn_b64encode(lenv* e,lval* a){
@@ -2048,16 +2184,67 @@ lval* builtin_b64decode(lenv* e,lval* a){
 	LASSERT_TYPE("b64decode",a,0,LVAL_STR);
 	LASSERT_NUM("b64decode",a,1);
 	char* string=a->cell[0]->str;
-	char* decoded=decodeBase64(string,strlen(string));
-	lval* array=lval_qexpr();
-	for(int i=0;i<sizeof(decoded)/sizeof(char)+1;i++){
-		char character=decoded[i];
-		int ch_code=(int)character;
-		array=lval_add(array,lval_num(ch_code));
-	}lval_del(a);
-	return array;
+	lval* result=decodeBase64(string,strlen(string));
+	lval_del(a);
+	return result;
 }
-
+int str_index_of(const char *a, char *b)
+{
+	char *offset = (char*)strstr(a, b);
+	return offset - a;
+}
+char *str_ndup (const char *str, size_t max)
+{
+    size_t len = strnlen (str, max);
+    char *res = (char*)malloc (len + 1);
+    if (res)
+    {
+        memcpy (res, str, len);
+        res[len] = '\0';
+    }
+    return res;
+}
+char* get_until(char *haystack, char *until)
+{
+	int offset = str_index_of(haystack, until);
+	return str_ndup(haystack, offset);
+}
+lval* builtin_getuntil(lenv* e,lval* a){
+	LASSERT_TYPE("getuntil",a,0,LVAL_STR);
+	LASSERT_TYPE("getuntil",a,1,LVAL_STR);
+	LASSERT_NUM("getuntil",a,2);
+	return lval_str(get_until(a->cell[0]->str,a->cell[1]->str));
+}
+char *str_replace(char *search , char *replace , char *subject)
+{
+	char  *p = NULL , *old = NULL , *new_subject = NULL ;
+	int c = 0 , search_size;
+	search_size = strlen(search);
+	for(p = strstr(subject , search) ; p != NULL ; p = strstr(p + search_size , search))
+	{
+		c++;
+	}	
+	c = ( strlen(replace) - search_size )*c + strlen(subject);
+	new_subject = (char*)malloc( c );
+	strcpy(new_subject , "");
+	old = subject;	
+	for(p = strstr(subject , search) ; p != NULL ; p = strstr(p + search_size , search))
+	{
+		strncpy(new_subject + strlen(new_subject) , old , p - old);
+		strcpy(new_subject + strlen(new_subject) , replace);
+		old = p + search_size;
+	}
+	strcpy(new_subject + strlen(new_subject) , old);	
+	return new_subject;
+}
+lval* builtin_req_body(lenv* e,lval* a){
+	LASSERT_TYPE("req_body",a,0,LVAL_STR);
+	LASSERT_NUM("req_body",a,1);
+	char* response=a->cell[0]->str;
+	char *body = strstr(response, "\r\n\r\n");
+	body = str_replace("\r\n\r\n", "", body);
+	return lval_str(body);
+}
 lval* builtin_system(lenv* e,lval* a){
 	LASSERT_TYPE("system",a,0,LVAL_STR);
 	LASSERT_NUM("system",a,1);
@@ -2174,7 +2361,9 @@ lval* builtin_sizeof(lenv* e,lval* a){
 	FILE *pFile;
 	pFile = fopen(a->cell[0]->str, "rb");
 	lval_del(a);
-	return lval_num(get_file_size(pFile));
+	long file_size=get_file_size(pFile);
+	fclose(pFile);
+	return lval_num(file_size);
 }
 lval* builtin_getbin(lenv* e,lval* a){
 	LASSERT_TYPE("getbin",a,0,LVAL_STR);
@@ -2189,8 +2378,45 @@ lval* builtin_getbin(lenv* e,lval* a){
 	for(int i=0;i<get_file_size(pFile);i++){
 		result=lval_add(result,lval_num(fgetc(pFile)));
 	}
+	fclose(pFile);
 	lval_del(a);
 	return result;
+}
+lval* builtin_putbin(lenv* e,lval* a){
+	LASSERT_TYPE("putbin",a,0,LVAL_STR);
+	LASSERT_TYPE("putbin",a,1,LVAL_QEXPR);
+	LASSERT_NUM("putbin",a,2);
+	FILE *pFile;
+	pFile = fopen(a->cell[0]->str, "wb");
+	if(pFile == NULL){
+		lval_del(a);
+		return lval_err("Unable to open file: %s.",a->cell[0]->str);
+	}
+	lval* v=lval_take(a,1);
+	for(int i=0;i<v->count;i++){
+		fputc((int)v->cell[i]->num,pFile);
+	}
+	fclose(pFile);
+	lval_del(a);
+	return lval_sexpr();
+}
+lval* builtin_addbin(lenv* e,lval* a){
+	LASSERT_TYPE("putbin",a,0,LVAL_STR);
+	LASSERT_TYPE("putbin",a,1,LVAL_QEXPR);
+	LASSERT_NUM("putbin",a,2);
+	FILE *pFile;
+	pFile = fopen(a->cell[0]->str, "ab");
+	if(pFile == NULL){
+		lval_del(a);
+		return lval_err("Unable to open file: %s.",a->cell[0]->str);
+	}
+	lval* v=lval_take(a,1);
+	for(int i=0;i<v->count;i++){
+		fputc((int)v->cell[i]->num,pFile);
+	}
+	fclose(pFile);
+	lval_del(a);
+	return lval_sexpr();
 }
 
 lval* builtin_stdin(lenv* e,lval* a){
@@ -2255,6 +2481,12 @@ lval* builtin_request(lenv* e,lval* a){
 	LASSERT_TYPE("request",a,2,LVAL_STR);
 	return http_request(a->cell[0]->str,a->cell[1]->num,a->cell[2]->str);
 }
+lval* builtin_download(lenv* e,lval* a){
+	LASSERT_NUM("download",a,2);
+	LASSERT_TYPE("download",a,0,LVAL_STR);
+	LASSERT_TYPE("download",a,1,LVAL_STR);
+	return download_file(a->cell[0]->str,a->cell[1]->str);
+}
 #else
 lval* builtin_request(lenv* e,lval* a){
 	LASSERT_NUM("request",a,3);
@@ -2266,6 +2498,35 @@ lval* builtin_request(lenv* e,lval* a){
 	char* request=a->cell[2]->str; 
 	char* result=http_request(hostname,port,request);
 	return lval_str(result);
+}
+lval* builtin_download(lenv* e,lval* a){
+	LASSERT_NUM("download",a,2);
+	LASSERT_TYPE("download",a,0,LVAL_STR);
+	LASSERT_TYPE("download",a,1,LVAL_STR);
+	int download=download_file(a->cell[0]->str,a->cell[1]->str);
+	lval* result=NULL;
+	switch(download){
+		case 1:
+			result=lval_err("Invalid URL format");
+			break;
+		case 2:
+			result=lval_err("Failed to create socket");
+			break;
+		case 3:
+			result=lval_err("Failed to resolve host name");
+			break;
+		case 4:
+			result=lval_err("Failed to connect to the server");
+			break;
+		case 5:
+			result=lval_err("Failed to send request");
+			break;
+		case 6:
+			result=lval_err("Failed to open file %s for writing", a->cell[1]->str);
+			break;
+		default:
+			result=lval_sexpr();
+	}return result;
 }
 #endif
 #ifdef _WIN32
@@ -2347,6 +2608,7 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "tail", builtin_tail);
     lenv_add_builtin(e, "eval", builtin_eval);
     lenv_add_builtin(e, "join", builtin_join);
+    lenv_add_builtin(e, "index", builtin_index);
 
     /* Mathematical Functions */
     lenv_add_builtin(e, "+", builtin_add);
@@ -2379,13 +2641,17 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "sta", builtin_sta);
     lenv_add_builtin(e, "b64encode", builitn_b64encode);
     lenv_add_builtin(e, "b64decode", builtin_b64decode);
+    lenv_add_builtin(e, "getuntil", builtin_getuntil);
+    lenv_add_builtin(e, "req_body", builtin_req_body);
     
     /* File Functions */
     lenv_add_builtin(e, "getall", builtin_getall);
     lenv_add_builtin(e, "sizeof", builtin_sizeof);
     lenv_add_builtin(e, "getbin", builtin_getbin);
+    lenv_add_builtin(e, "putbin", builtin_putbin);
+    lenv_add_builtin(e, "addbin", builtin_addbin);
 	
-	/* Environment Functions */
+	/* Environmental Functions */
 	lenv_add_builtin(e, "getenv", builtin_getenv); 
 	lenv_add_builtin(e, "putenv", builtin_putenv);
 	lenv_add_builtin(e, "setenv", builtin_setenv);
@@ -2406,6 +2672,7 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "rand", builtin_rand);
     lenv_add_builtin(e, "delay", builtin_delay);
     lenv_add_builtin(e, "request", builtin_request);
+    lenv_add_builtin(e, "download", builtin_download);
     lenv_add_builtin(e, "calldl", builtin_calldl);
     lenv_add_builtin(e, "cthread", builtin_cthread);
     lenv_add_builtin(e, "jthread", builtin_jthread);
