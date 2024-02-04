@@ -20,7 +20,7 @@ endif
 unix: cabbage
 	@echo "$(BIT)-bit compiled successfully."
 cabbage: main.c
-	gcc main.c -o cabbage $(GCC_FLAG) -lm -lreadline
+	gcc main.c -o cabbage $(GCC_FLAG) -lm -lreadline -lcurl
 
 cabbage.ico.o: cabbage.rc
 	windres cabbage.rc -o cabbage.ico.o $(ICO_FLAG)
