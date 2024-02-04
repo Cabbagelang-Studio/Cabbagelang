@@ -1584,32 +1584,32 @@ int download_file(const char *url, const char *destination) {
     char host[256], port[6], path[256];
 
     if (!parse_url(url, host, port, path)) {
-        return 1;
+        return 1; // URL parsing error
     }
 
     // Create a socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        return 2;
+        return 2; // Socket creation error
     }
 
     // Resolve the host name
     server = gethostbyname(host);
     if (server == NULL) {
         close(sockfd);
-        return 3;
+        return 3; // Host resolution error
     }
 
     // Set up server address structure
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-    bcopy((char *)server->h_addr, (char *)&server_addr.sin_addr.s_addr, server->h_length);
+    memcpy(&server_addr.sin_addr.s_addr, server->h_addr_list[0], server->h_length);
     server_addr.sin_port = htons(atoi(port));
 
     // Connect to the server
     if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         close(sockfd);
-        return 4;
+        return 4; // Connection error
     }
 
     // Send HTTP GET request
@@ -1617,14 +1617,14 @@ int download_file(const char *url, const char *destination) {
     sprintf(request, "GET /%s HTTP/1.1\r\nHost: %s:%s\r\n\r\n", path, host, port);
     if (send(sockfd, request, strlen(request), 0) < 0) {
         close(sockfd);
-        return 5;
+        return 5; // Request sending error
     }
 
     // Open the file for writing
     file = fopen(destination, "wb");
     if (!file) {
         close(sockfd);
-        return 6;
+        return 6; // File opening error
     }
 
     // Read data from the socket and write to the file
@@ -1635,7 +1635,7 @@ int download_file(const char *url, const char *destination) {
     fclose(file);
     close(sockfd);
 
-    return 0;
+    return 0; // File download successful
 }
 
 #endif
@@ -1761,20 +1761,17 @@ lval* builtin_join(lenv* e,lval* a){
 }
 
 lval* builtin_index(lenv* e,lval* a){
+	LASSERT_NUM("index",a,2);
 	LASSERT_TYPE("index",a,0,LVAL_QEXPR);
 	LASSERT_TYPE("index",a,1,LVAL_NUM);
-	LASSERT_NUM("index",a,2);
+	int num=(int)a->cell[1]->num;
 	lval* v=lval_take(a,0);
-	int num=a->cell[1]->num;
-	if(abs(num)>=v->count){
-		lval_del(a);
+	if(num>=v->count||abs(num)>v->count){
 		return lval_err("Out of range.");
 	}if(num<0){
-		lval_del(a);
-		return v->cell[v->count+num];
+		return lval_pop(v,v->count+num);
 	}else{
-		lval_del(a);
-		return v->cell[num];
+		return lval_pop(v,num);
 	}
 	
 }
@@ -2068,42 +2065,41 @@ lval* builtin_substr(lenv* e,lval* a){
     return x;
 }
 lval* builtin_strlen(lenv* e, lval* a){
-	LASSERT_TYPE("strlen",a,0,LVAL_STR);
 	LASSERT_NUM("strlen",a,1);
+	LASSERT_TYPE("strlen",a,0,LVAL_STR);
     return lval_num(strlen(a->cell[0]->str));
 }
 lval* builtin_nts(lenv* e, lval* a){
-	LASSERT_TYPE("nts",a,0,LVAL_NUM);
 	LASSERT_NUM("nts",a,1);
+	LASSERT_TYPE("nts",a,0,LVAL_NUM);
     char x[512]={0};
     sprintf(x,"%lf",a->cell[0]->num);
     lval_del(a);
     return lval_str(x);
 }
 lval* builtin_stn(lenv* e, lval* a){
-	LASSERT_TYPE("stn",a,0,LVAL_STR);
 	LASSERT_NUM("stn",a,1);
+	LASSERT_TYPE("stn",a,0,LVAL_STR);
     return lval_num(atof(a->cell[0]->str));
 }
 lval* builtin_ats(lenv* e,lval* a){
-	LASSERT_TYPE("ats",a,0,LVAL_QEXPR);
 	LASSERT_NUM("ats",a,1);
+	LASSERT_TYPE("ats",a,0,LVAL_QEXPR);
 	lval* v=lval_take(a,0);
 	char string[v->count];
 	for(int i=0;i<v->count;i++){
 		char character=v->cell[i]->num;
 		string[i]=character;
 	}
-	lval_del(a);
 	return lval_str(string);
 }
 
 lval* builtin_sta(lenv* e,lval* a){
-	LASSERT_TYPE("sta",a,0,LVAL_STR);
 	LASSERT_NUM("sta",a,1);
+	LASSERT_TYPE("sta",a,0,LVAL_STR);
 	char* string=a->cell[0]->str;
 	lval* array=lval_qexpr();
-	for(int i=0;i<_msize(string)/sizeof(char);i++){
+	for(int i=0;i<strlen(string)+1;i++){
 		char character=string[i];
 		int ch_code=(int)character;
 		array=lval_add(array,lval_num(ch_code));
@@ -2167,8 +2163,8 @@ lval* decodeBase64(char* str,int len){
 }
 
 lval* builitn_b64encode(lenv* e,lval* a){
-	LASSERT_TYPE("b64encode",a,0,LVAL_QEXPR);
 	LASSERT_NUM("b64encode",a,1);
+	LASSERT_TYPE("b64encode",a,0,LVAL_QEXPR);
 	lval* v=lval_take(a,0);
 	char string[v->count];
 	for(int i=0;i<v->count;i++){
@@ -2176,13 +2172,12 @@ lval* builitn_b64encode(lenv* e,lval* a){
 		string[i]=character;
 	}
 	char* encoded=encodeBase64(string,sizeof(string)/sizeof(char));
-	lval_del(a);
 	return lval_str(encoded);
 }
 
 lval* builtin_b64decode(lenv* e,lval* a){
-	LASSERT_TYPE("b64decode",a,0,LVAL_STR);
 	LASSERT_NUM("b64decode",a,1);
+	LASSERT_TYPE("b64decode",a,0,LVAL_STR);
 	char* string=a->cell[0]->str;
 	lval* result=decodeBase64(string,strlen(string));
 	lval_del(a);
@@ -2210,52 +2205,30 @@ char* get_until(char *haystack, char *until)
 	return str_ndup(haystack, offset);
 }
 lval* builtin_getuntil(lenv* e,lval* a){
+	LASSERT_NUM("getuntil",a,2);
 	LASSERT_TYPE("getuntil",a,0,LVAL_STR);
 	LASSERT_TYPE("getuntil",a,1,LVAL_STR);
-	LASSERT_NUM("getuntil",a,2);
 	return lval_str(get_until(a->cell[0]->str,a->cell[1]->str));
 }
-char *str_replace(char *search , char *replace , char *subject)
-{
-	char  *p = NULL , *old = NULL , *new_subject = NULL ;
-	int c = 0 , search_size;
-	search_size = strlen(search);
-	for(p = strstr(subject , search) ; p != NULL ; p = strstr(p + search_size , search))
-	{
-		c++;
-	}	
-	c = ( strlen(replace) - search_size )*c + strlen(subject);
-	new_subject = (char*)malloc( c );
-	strcpy(new_subject , "");
-	old = subject;	
-	for(p = strstr(subject , search) ; p != NULL ; p = strstr(p + search_size , search))
-	{
-		strncpy(new_subject + strlen(new_subject) , old , p - old);
-		strcpy(new_subject + strlen(new_subject) , replace);
-		old = p + search_size;
-	}
-	strcpy(new_subject + strlen(new_subject) , old);	
-	return new_subject;
-}
-lval* builtin_req_body(lenv* e,lval* a){
-	LASSERT_TYPE("req_body",a,0,LVAL_STR);
-	LASSERT_NUM("req_body",a,1);
+lval* builtin_res_body(lenv* e,lval* a){
+	LASSERT_NUM("res_body",a,1);
+	LASSERT_TYPE("res_body",a,0,LVAL_STR);
 	char* response=a->cell[0]->str;
 	char *body = strstr(response, "\r\n\r\n");
-	body = str_replace("\r\n\r\n", "", body);
+	body = lval_string_replace(body, "\r\n\r\n", "");
 	return lval_str(body);
 }
 lval* builtin_system(lenv* e,lval* a){
-	LASSERT_TYPE("system",a,0,LVAL_STR);
 	LASSERT_NUM("system",a,1);
+	LASSERT_TYPE("system",a,0,LVAL_STR);
     system(a->cell[0]->str);
     lval_del(a);
     return lval_sexpr();
 }
 
 lval* builtin_chdir(lenv* e,lval* a){
-	LASSERT_TYPE("chdir",a,0,LVAL_STR);
 	LASSERT_NUM("chdir",a,1);
+	LASSERT_TYPE("chdir",a,0,LVAL_STR);
 	chdir(a->cell[0]->str);
 	lval_del(a);
 	return lval_sexpr();
@@ -2297,8 +2270,8 @@ lval* builtin_unsetenv(lenv* e,lval* a){
 }
 
 lval* builtin_kin(lenv* e,lval* a){
-	LASSERT_TYPE("kin",a,0,LVAL_STR);
 	LASSERT_NUM("kin",a,1);
+	LASSERT_TYPE("kin",a,0,LVAL_STR);
     char* input=readline(a->cell[0]->str);
     lval_del(a);
     return lval_str(input);
@@ -2322,16 +2295,17 @@ lval *readfile(char *path, int *length)
 	*length = fread(data, 1, *length, pfile);
 	data[*length] = '\0';
 	fclose(pfile);
-	return lval_str(data);
+	lval* result=lval_str(data);
+	return result;
 }
 
 lval* builtin_getall(lenv* e,lval* a){
-	LASSERT_TYPE("getall",a,0,LVAL_STR);
 	LASSERT_NUM("getall",a,1);
+	LASSERT_TYPE("getall",a,0,LVAL_STR);
 	int buffer=0;
-	char* input=readfile(a->cell[0]->str,&buffer);
+	lval* input=readfile(a->cell[0]->str,&buffer);
 	lval_del(a);
-	return lval_str(input);
+	return input;
 }
 long get_file_size(FILE *stream)
 {
@@ -2356,8 +2330,8 @@ long get_file_size(FILE *stream)
 	return file_size;
 }
 lval* builtin_sizeof(lenv* e,lval* a){
-	LASSERT_TYPE("sizeof",a,0,LVAL_STR);
 	LASSERT_NUM("sizeof",a,1);
+	LASSERT_TYPE("sizeof",a,0,LVAL_STR);
 	FILE *pFile;
 	pFile = fopen(a->cell[0]->str, "rb");
 	lval_del(a);
@@ -2366,8 +2340,8 @@ lval* builtin_sizeof(lenv* e,lval* a){
 	return lval_num(file_size);
 }
 lval* builtin_getbin(lenv* e,lval* a){
-	LASSERT_TYPE("getbin",a,0,LVAL_STR);
 	LASSERT_NUM("getbin",a,1);
+	LASSERT_TYPE("getbin",a,0,LVAL_STR);
 	FILE *pFile;
 	pFile = fopen(a->cell[0]->str, "rb");
 	if(pFile == NULL){
@@ -2383,9 +2357,9 @@ lval* builtin_getbin(lenv* e,lval* a){
 	return result;
 }
 lval* builtin_putbin(lenv* e,lval* a){
+	LASSERT_NUM("putbin",a,2);
 	LASSERT_TYPE("putbin",a,0,LVAL_STR);
 	LASSERT_TYPE("putbin",a,1,LVAL_QEXPR);
-	LASSERT_NUM("putbin",a,2);
 	FILE *pFile;
 	pFile = fopen(a->cell[0]->str, "wb");
 	if(pFile == NULL){
@@ -2397,13 +2371,12 @@ lval* builtin_putbin(lenv* e,lval* a){
 		fputc((int)v->cell[i]->num,pFile);
 	}
 	fclose(pFile);
-	lval_del(a);
 	return lval_sexpr();
 }
 lval* builtin_addbin(lenv* e,lval* a){
-	LASSERT_TYPE("putbin",a,0,LVAL_STR);
-	LASSERT_TYPE("putbin",a,1,LVAL_QEXPR);
-	LASSERT_NUM("putbin",a,2);
+	LASSERT_NUM("addbin",a,2);
+	LASSERT_TYPE("addbin",a,0,LVAL_STR);
+	LASSERT_TYPE("addbin",a,1,LVAL_QEXPR);
 	FILE *pFile;
 	pFile = fopen(a->cell[0]->str, "ab");
 	if(pFile == NULL){
@@ -2415,60 +2388,59 @@ lval* builtin_addbin(lenv* e,lval* a){
 		fputc((int)v->cell[i]->num,pFile);
 	}
 	fclose(pFile);
-	lval_del(a);
 	return lval_sexpr();
 }
 
 lval* builtin_stdin(lenv* e,lval* a){
-	LASSERT_TYPE("stdin",a,0,LVAL_STR);
 	LASSERT_NUM("stdin",a,2);
+	LASSERT_TYPE("stdin",a,0,LVAL_STR);
     freopen(a->cell[0]->str,a->cell[1]->str,stdin);
     lval_del(a);
     return lval_sexpr();
 }
 lval* builtin_stdout(lenv* e,lval* a){
-	LASSERT_TYPE("stdout",a,0,LVAL_STR);
 	LASSERT_NUM("stdout",a,2);
+	LASSERT_TYPE("stdout",a,0,LVAL_STR);
     freopen(a->cell[0]->str,a->cell[1]->str,stdout);
     lval_del(a);
     return lval_sexpr();
 }
 lval* builtin_stderr(lenv* e,lval* a){
-	LASSERT_TYPE("stdout",a,0,LVAL_STR);
 	LASSERT_NUM("stdout",a,2);
+	LASSERT_TYPE("stdout",a,0,LVAL_STR);
 	freopen(a->cell[0]->str,a->cell[1]->str,stderr);
     lval_del(a);
     return lval_sexpr();
 }
 lval* builtin_exit(lenv* e,lval* a){
-	LASSERT_TYPE("exit",a,0,LVAL_NUM);
 	LASSERT_NUM("exit",a,1);
+	LASSERT_TYPE("exit",a,0,LVAL_NUM);
     exit(a->cell[0]->num);
     lval_del(a);
     return lval_sexpr();
 }
 
 lval* builtin_time(lenv* e,lval* a){
-	LASSERT_TYPE("time",a,0,LVAL_NUM);
 	LASSERT_NUM("time",a,1);
+	LASSERT_TYPE("time",a,0,LVAL_NUM);
     return lval_num(time((int)a->cell[0]->num));
 }
 lval* builtin_srand(lenv* e,lval* a){
-	LASSERT_TYPE("srand",a,0,LVAL_NUM);
 	LASSERT_NUM("srand",a,1);
+	LASSERT_TYPE("srand",a,0,LVAL_NUM);
     srand(a->cell[0]->num);
     lval_del(a);
     return lval_sexpr();
 }
 lval* builtin_rand(lenv* e,lval* a){
-	LASSERT_TYPE("rand",a,0,LVAL_SEXPR);
 	LASSERT_NUM("rand",a,1);
+	LASSERT_TYPE("rand",a,0,LVAL_SEXPR);
 	lval_del(a);
 	return lval_num(rand());
 }
 lval* builtin_delay(lenv* e,lval* a){
-	LASSERT_TYPE("delay",a,0,LVAL_NUM);
 	LASSERT_NUM("delay",a,1);
+	LASSERT_TYPE("delay",a,0,LVAL_NUM);
 	sleep((int)a->cell[0]->num);
 	lval_del(a);
 	return lval_sexpr();
@@ -2531,6 +2503,7 @@ lval* builtin_download(lenv* e,lval* a){
 #endif
 #ifdef _WIN32
 lval* builtin_calldl(lenv* e,lval* a){
+	LASSERT_NUM("calldl",a,2);
 	LASSERT_TYPE("calldl",a,0,LVAL_STR);
 	LASSERT_TYPE("calldl",a,1,LVAL_STR);
 	typedef lval* (*DLFunction)(lenv* e,lval* a);
@@ -2548,6 +2521,7 @@ lval* builtin_calldl(lenv* e,lval* a){
 #include<dlfcn.h>
 
 lval* builtin_calldl(lenv* e,lval* a){
+	LASSERT_NUM("calldl",a,2);
 	LASSERT_TYPE("calldl",a,0,LVAL_STR);
 	LASSERT_TYPE("calldl",a,1,LVAL_STR);
 	lval* (*DLFun)(lenv* e,lval* a);
@@ -2642,7 +2616,7 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "b64encode", builitn_b64encode);
     lenv_add_builtin(e, "b64decode", builtin_b64decode);
     lenv_add_builtin(e, "getuntil", builtin_getuntil);
-    lenv_add_builtin(e, "req_body", builtin_req_body);
+    lenv_add_builtin(e, "res_body", builtin_res_body);
     
     /* File Functions */
     lenv_add_builtin(e, "getall", builtin_getall);
