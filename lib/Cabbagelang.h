@@ -1561,81 +1561,39 @@ char* http_request(const char* hostname,int port,const char* request){
  
 }
 
-int parse_url(const char *url, char *host, char *port, char *path) {
-    // Parse the URL to get the host name, port, and path
-    if (sscanf(url, "http://%[^:]:%[^/]/%s", host, port, path) == 3) {
-        return 1; // Port specified in the URL
-    } else if (sscanf(url, "http://%[^/]/%s", host, path) == 2) {
-        strcpy(port, "80"); // Default port is 80
-        return 1;
-    } else {
-        return 0; // Invalid URL format
-    }
+size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream) {
+    size_t written = fwrite(ptr, size, nmemb, stream);
+    return written;
 }
 
-int download_file(const char *url, const char *destination) {
-    int sockfd, bytesRead;
+#include <curl/curl.h>
+
+int download_file(const char *url, const char *output_file) {
+    CURL *curl;
     FILE *file;
-    char buffer[BUFFER_SIZE];
+    CURLcode res;
 
-    struct sockaddr_in server_addr;
-    struct hostent *server;
-
-    char host[256], port[6], path[256];
-
-    if (!parse_url(url, host, port, path)) {
-        return 1; // URL parsing error
+    curl = curl_easy_init();
+    if (!curl) {
+        return 1;
     }
 
-    // Create a socket
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        return 2; // Socket creation error
-    }
-
-    // Resolve the host name
-    server = gethostbyname(host);
-    if (server == NULL) {
-        close(sockfd);
-        return 3; // Host resolution error
-    }
-
-    // Set up server address structure
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    memcpy(&server_addr.sin_addr.s_addr, server->h_addr_list[0], server->h_length);
-    server_addr.sin_port = htons(atoi(port));
-
-    // Connect to the server
-    if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        close(sockfd);
-        return 4; // Connection error
-    }
-
-    // Send HTTP GET request
-    char request[256];
-    sprintf(request, "GET /%s HTTP/1.1\r\nHost: %s:%s\r\n\r\n", path, host, port);
-    if (send(sockfd, request, strlen(request), 0) < 0) {
-        close(sockfd);
-        return 5; // Request sending error
-    }
-
-    // Open the file for writing
-    file = fopen(destination, "wb");
+    file = fopen(output_file, "wb");
     if (!file) {
-        close(sockfd);
-        return 6; // File opening error
+        curl_easy_cleanup(curl);
+        return 2;
     }
 
-    // Read data from the socket and write to the file
-    while ((bytesRead = recv(sockfd, buffer, BUFFER_SIZE, 0)) > 0) {
-        fwrite(buffer, 1, bytesRead, file);
-    }
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
 
+    res = curl_easy_perform(curl);
+
+    curl_easy_cleanup(curl);
     fclose(file);
-    close(sockfd);
 
-    return 0; // File download successful
+    return res == CURLE_OK ? 0 : 3;
 }
 
 #endif
@@ -1769,11 +1727,24 @@ lval* builtin_index(lenv* e,lval* a){
 	if(num>=v->count||abs(num)>v->count){
 		return lval_err("Out of range.");
 	}if(num<0){
-		return lval_pop(v,v->count+num);
+		lval* result=lval_pop(v,v->count+num);
+		lval_del(v);
+		return result;
 	}else{
-		return lval_pop(v,num);
+		lval* result=lval_pop(v,num);
+		lval_del(v);
+		return result;
 	}
 	
+}
+
+lval* builtin_len(lenv* e,lval* a){
+	LASSERT_NUM("len",a,1);
+	LASSERT_TYPE("len",a,0,LVAL_QEXPR);
+	lval* v=lval_take(a,0);
+	int length=v->count;
+	lval_del(v);
+	return lval_num(length);
 }
 
 lval* builtin_argv(lenv* e,lval* a){
@@ -1906,6 +1877,28 @@ lval* builtin_if(lenv* e,lval* a){
 
     lval_del(a);
     return x;
+}
+
+lval* builtin_while(lenv* e,lval* a){
+	LASSERT_NUM("while", a, 2);
+    LASSERT_TYPE("while", a, 0, LVAL_QEXPR);
+    LASSERT_TYPE("while", a, 1, LVAL_QEXPR);
+    lval*x=lval_sexpr();
+    lval* condition;
+	lval* loop;
+	
+	condition=lval_pop(a,0);
+	loop=lval_pop(a,0);
+	condition->type=LVAL_SEXPR;
+	loop->type=LVAL_SEXPR;
+	
+	while(lval_eval(e,lval_copy(condition))->num){
+		x=lval_eval(e,lval_copy(loop));
+	}
+	
+	lval_del(a);
+	return x;
+	 
 }
 
 /*math*/
@@ -2090,7 +2083,7 @@ lval* builtin_ats(lenv* e,lval* a){
 	for(int i=0;i<v->count;i++){
 		char character=v->cell[i]->num;
 		string[i]=character;
-	}
+	}lval_del(v);
 	return lval_str(string);
 }
 
@@ -2172,6 +2165,7 @@ lval* builitn_b64encode(lenv* e,lval* a){
 		string[i]=character;
 	}
 	char* encoded=encodeBase64(string,sizeof(string)/sizeof(char));
+	lval_del(v);
 	return lval_str(encoded);
 }
 
@@ -2371,6 +2365,7 @@ lval* builtin_putbin(lenv* e,lval* a){
 		fputc((int)v->cell[i]->num,pFile);
 	}
 	fclose(pFile);
+	lval_del(v);
 	return lval_sexpr();
 }
 lval* builtin_addbin(lenv* e,lval* a){
@@ -2388,6 +2383,7 @@ lval* builtin_addbin(lenv* e,lval* a){
 		fputc((int)v->cell[i]->num,pFile);
 	}
 	fclose(pFile);
+	lval_del(v);
 	return lval_sexpr();
 }
 
@@ -2583,6 +2579,7 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "eval", builtin_eval);
     lenv_add_builtin(e, "join", builtin_join);
     lenv_add_builtin(e, "index", builtin_index);
+    lenv_add_builtin(e, "len", builtin_len);
 
     /* Mathematical Functions */
     lenv_add_builtin(e, "+", builtin_add);
@@ -2595,6 +2592,7 @@ void lenv_add_builtins(lenv* e){
 
     /* Logical Functions */
     lenv_add_builtin(e, "if", builtin_if);
+    lenv_add_builtin(e, "while", builtin_while);
     lenv_add_builtin(e, "==", builtin_eq);
     lenv_add_builtin(e, "!=", builtin_ne);
     lenv_add_builtin(e, ">",  builtin_gt);
@@ -2714,7 +2712,7 @@ lenv* Cabbagelang_initialize(int argc,char* argv[],char* env[]){
     lenv_add_builtins(e);
     
     mpc_result_t r;
-    char* stdlib="(func{nil}{})(func{true}1)(func {false} 0)(func {fun} (\\{f b} {    func (head f)        (\\ (tail f) b)}))(fun {unpack f l}{    eval (join (list f) l)})(fun {pack f & xs} {f xs})(func {curry} unpack)(func {uncurry} pack)(fun {do & l} {    if (== l nil)        {nil}        {last l}})(fun {let b} {    ((\\{_} b) ())})(fun {not x} {- 1 x})(fun {or x y} {+ x y})(fun {and x y} {* x y})(fun {min & xs} {    if (== (tail xs) nil) {fst xs}        {do            (= {rest} (unpack min(tail xs)))            (= {item} (fst xs))            (if (< item rest) {item} {rest})        }})(fun {max & xs} {    if(== (tail xs) nil) {fst xs}        {do            (= {rest} (unpack min (tail xs)))            (= {item} (fst xs))            (if (< item rest) {item} {rest})        }})(fun {flip f a b} {f b a})(fun {ghost & xs} {eval xs})(fun {comp f g x} {f (g x)})(fun {fst l} { eval (head l) })(fun {snd l} { eval (head (tail l)) })(fun {trd l} { eval (head (tail (tail l))) })(fun {len l} {   if (== l nil)    {0}    {+ 1 (len (tail l))}})(fun {nth n l} {   if (== n 0)    {fst l}    {nth (- n 1) (tail l)}})(fun {last l} {nth (- (len l) 1) l})(fun {take n l} {   if (== n 0)    {nil}    {join (head l) (take (- n 1) (tail l))}})(fun {drop n l} {   if (== n 0)    {l}    {drop (- n 1) (tail l)}})(fun {split n l} {list (take n l) (drop n l)})(fun {elem x l} {   if (== l nil)    {false}    {if (== x (fst l))        {true}        {elem x (tail l)}    }})(fun {take-while f l} {   if (not (unpack f (head l)))    {nil}    {join (head l) (take-while f (tail l))}})(fun {drop-while f l} {   if (not (unpack f (head l)))    {l}    {drop-while f (tail l)}})(fun {map f l} {   if (== l nil)    {nil}    {join (list (f (fst l))) (map f (tail l))}})(\\{x}{>x2}){5 2 11 -7 8 1}(fun {filter f l} {    if (== l nil)     {nil}     {join (if (f (fst l))                {head l}                {nil})    (filter f (tail l))}})(fun {foldl f zl}{    if (== l nil)        {z}        {fold l (f z (fst l)) (tail l)}})(fun {sum l} {foldl + 0 l})(fun {product l} {foldl * 1 l})(fun {select &cs} {    if (== cs nil)      {error \"No Selection Found\"}      {if (fst (fst cs))        {snd (fst cs)}        {unpack select (tail cs)}      }})(func {otherwise} true)(fun {month-day-suffix i}{    select        {(== i 0) \"st\"}        {(== i 1) \"nd\"}        {(== i 3) \"rd\"}        {otherwise \"th\"}})(fun {case x & cs} {    if (== cs nil)        {error \"No Case Found\"}        {if (== x (fst (fst cs)))            {snd (fst cs)}            {unpack case (join (list x) (tail cs))}        }})(fun {day-name x} {   case x        {0 \"Monday\"}        {1 \"Tuesday\"}        {2 \"Wednesday\"}        {3 \"Thursday\"}        {4 \"Friday\"}        {5 \"Saturday\"}        {6 \"Sunday\"}})(fun {fib n} {    select        { (== n 0) 0}        { (== n 1) 1}        { otherwise (+ (fib (- n 1)) (fib (- n2)))}})(fun {lookup x l} {   if (== l nil)       {error \"No Element Found\"}        {do            (= {key} (fst (fst l)))            (= {val} (snd (fst l)))            (if (== key x) {val} {lookup x (tail l)})        }})(fun {zip x y} {   if (or (== x nil) (== y nil))    {nil}    {join (list (join (head x) (head y))) (zip (tail x) (tail y))}})(fun {unzip l} {   if (== l nil)    {{nil nil}}    {do        (= {x} (fst l))        (= {xs} (unzip (tail l)))        (list (join (head x) (fst xs)) (join (tail x) (snd xs)))    }})  (fun {while rule expression} {(if (eval rule) {(eval expression) (while rule expression)} {})})";
+    char* stdlib="(func{nil}{})(func{true}1)(func {false} 0)(func {fun} (\\{f b} {    func (head f)        (\\ (tail f) b)}))(fun {unpack f l}{    eval (join (list f) l)})(fun {pack f & xs} {f xs})(func {curry} unpack)(func {uncurry} pack)(fun {do & l} {    if (== l nil)        {nil}        {last l}})(fun {let b} {    ((\\{_} b) ())})(fun {not x} {- 1 x})(fun {or x y} {+ x y})(fun {and x y} {* x y})(fun {min & xs} {    if (== (tail xs) nil) {fst xs}        {do            (= {rest} (unpack min(tail xs)))            (= {item} (fst xs))            (if (< item rest) {item} {rest})        }})(fun {max & xs} {    if(== (tail xs) nil) {fst xs}        {do            (= {rest} (unpack min (tail xs)))            (= {item} (fst xs))            (if (< item rest) {item} {rest})        }})(fun {flip f a b} {f b a})(fun {ghost & xs} {eval xs})(fun {comp f g x} {f (g x)})(fun {fst l} { eval (head l) })(fun {snd l} { eval (head (tail l)) })(fun {trd l} { eval (head (tail (tail l))) })(fun {nth n l} {   if (== n 0)    {fst l}    {nth (- n 1) (tail l)}})(fun {last l} {nth (- (len l) 1) l})(fun {take n l} {   if (== n 0)    {nil}    {join (head l) (take (- n 1) (tail l))}})(fun {drop n l} {   if (== n 0)    {l}    {drop (- n 1) (tail l)}})(fun {split n l} {list (take n l) (drop n l)})(fun {elem x l} {   if (== l nil)    {false}    {if (== x (fst l))        {true}        {elem x (tail l)}    }})(fun {take-while f l} {   if (not (unpack f (head l)))    {nil}    {join (head l) (take-while f (tail l))}})(fun {drop-while f l} {   if (not (unpack f (head l)))    {l}    {drop-while f (tail l)}})(fun {map f l} {   if (== l nil)    {nil}    {join (list (f (fst l))) (map f (tail l))}})(\\{x}{>x2}){5 2 11 -7 8 1}(fun {filter f l} {    if (== l nil)     {nil}     {join (if (f (fst l))                {head l}                {nil})    (filter f (tail l))}})(fun {foldl f zl}{    if (== l nil)        {z}        {fold l (f z (fst l)) (tail l)}})(fun {sum l} {foldl + 0 l})(fun {product l} {foldl * 1 l})(fun {select &cs} {    if (== cs nil)      {error \"No Selection Found\"}      {if (fst (fst cs))        {snd (fst cs)}        {unpack select (tail cs)}      }})(func {otherwise} true)(fun {month-day-suffix i}{    select        {(== i 0) \"st\"}        {(== i 1) \"nd\"}        {(== i 3) \"rd\"}        {otherwise \"th\"}})(fun {case x & cs} {    if (== cs nil)        {error \"No Case Found\"}        {if (== x (fst (fst cs)))            {snd (fst cs)}            {unpack case (join (list x) (tail cs))}        }})(fun {day-name x} {   case x        {0 \"Monday\"}        {1 \"Tuesday\"}        {2 \"Wednesday\"}        {3 \"Thursday\"}        {4 \"Friday\"}        {5 \"Saturday\"}        {6 \"Sunday\"}})(fun {fib n} {    select        { (== n 0) 0}        { (== n 1) 1}        { otherwise (+ (fib (- n 1)) (fib (- n2)))}})(fun {lookup x l} {   if (== l nil)       {error \"No Element Found\"}        {do            (= {key} (fst (fst l)))            (= {val} (snd (fst l)))            (if (== key x) {val} {lookup x (tail l)})        }})(fun {zip x y} {   if (or (== x nil) (== y nil))    {nil}    {join (list (join (head x) (head y))) (zip (tail x) (tail y))}})(fun {unzip l} {   if (== l nil)    {{nil nil}}    {do        (= {x} (fst l))        (= {xs} (unzip (tail l)))        (list (join (head x) (fst xs)) (join (tail x) (snd xs)))    }})";
     mpc_parse("<stdlib>",stdlib,Lispy,&r);
     lval*x =lval_eval(e,lval_read(r.output));
     lval_del(x);
