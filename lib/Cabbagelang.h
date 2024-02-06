@@ -1747,6 +1747,42 @@ lval* builtin_len(lenv* e,lval* a){
 	return lval_num(length);
 }
 
+lval* builtin_take(lenv* e,lval* a){
+	LASSERT_NUM("take",a,2);
+	LASSERT_TYPE("take",a,0,LVAL_QEXPR);
+	LASSERT_TYPE("take",a,1,LVAL_NUM);
+	lval* v=lval_pop(a,0);
+	int index=lval_pop(a,0)->num;
+	if(abs(index)>v->count){
+		lval_del(a);
+		lval_del(v);
+		return lval_err("Invalid index.");
+	}
+	lval* x=lval_qexpr();
+	for(int i=0;i<abs(index);i++){
+		lval_add(x,lval_pop(v,index>0?0:(v->count-1)));
+	}lval_del(a);
+	lval_del(v);
+	return x;
+}
+
+lval* builtin_drop(lenv* e,lval* a){
+	LASSERT_NUM("drop",a,2);
+	LASSERT_TYPE("drop",a,0,LVAL_QEXPR);
+	LASSERT_TYPE("drop",a,1,LVAL_NUM);
+	lval* v=lval_pop(a,0);
+	int index=lval_pop(a,0)->num;
+	if(abs(index)>v->count){
+		lval_del(a);
+		lval_del(v);
+		return lval_err("Invalid index.");
+	}
+	for(int i=0;i<abs(index);i++){
+		lval_pop(v,index>0?0:(v->count-1));
+	}lval_del(a);
+	return v;
+}
+
 lval* builtin_argv(lenv* e,lval* a){
 	LASSERT_NUM("argv",a,1);
 	LASSERT_TYPE("argv",a,0,LVAL_NUM);
@@ -1895,7 +1931,8 @@ lval* builtin_while(lenv* e,lval* a){
 	while(lval_eval(e,lval_copy(condition))->num){
 		x=lval_eval(e,lval_copy(loop));
 	}
-	
+	lval_del(condition);
+	lval_del(loop);
 	lval_del(a);
 	return x;
 	 
@@ -1930,6 +1967,26 @@ lval* builtin_mod(lenv* e,lval* a){
 
 lval* builtin_imul(lenv* e,lval* a){
     return builtin_op(e,a,"#");
+}
+
+lval* builtin_min(lenv* e,lval* a){ 
+	LASSERT_TYPE("min",a,0,LVAL_NUM);
+	double minimal=a->cell[0]->num; 
+	for(int i=1;i<a->count;i++){
+		LASSERT_TYPE("min",a,i,LVAL_NUM);
+		if(a->cell[i]->num<minimal)minimal=a->cell[i]->num; 
+	}lval_del(a);
+	return lval_num(minimal);
+}
+
+lval* builtin_max(lenv* e,lval* a){ 
+	LASSERT_TYPE("max",a,0,LVAL_NUM);
+	double maximal=a->cell[0]->num; 
+	for(int i=1;i<a->count;i++){
+		LASSERT_TYPE("max",a,i,LVAL_NUM);
+		if(a->cell[i]->num>maximal)maximal=a->cell[i]->num; 
+	}lval_del(a);
+	return lval_num(maximal);
 }
 
 void lenv_add_builtin(lenv* e,char* name,lbuiltin func){
@@ -2418,8 +2475,8 @@ lval* builtin_exit(lenv* e,lval* a){
 
 lval* builtin_time(lenv* e,lval* a){
 	LASSERT_NUM("time",a,1);
-	LASSERT_TYPE("time",a,0,LVAL_NUM);
-    return lval_num(time((int)a->cell[0]->num));
+	LASSERT_TYPE("time",a,0,LVAL_SEXPR);
+    return lval_num(time(NULL));
 }
 lval* builtin_srand(lenv* e,lval* a){
 	LASSERT_NUM("srand",a,1);
@@ -2580,6 +2637,8 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "join", builtin_join);
     lenv_add_builtin(e, "index", builtin_index);
     lenv_add_builtin(e, "len", builtin_len);
+    lenv_add_builtin(e, "take", builtin_take);
+    lenv_add_builtin(e, "drop", builtin_drop);
 
     /* Mathematical Functions */
     lenv_add_builtin(e, "+", builtin_add);
@@ -2589,6 +2648,8 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "**", builtin_pow);
     lenv_add_builtin(e, "%", builtin_mod);
     lenv_add_builtin(e, "//", builtin_imul);
+    lenv_add_builtin(e, "min", builtin_min);
+    lenv_add_builtin(e, "max", builtin_max);
 
     /* Logical Functions */
     lenv_add_builtin(e, "if", builtin_if);
@@ -2712,8 +2773,8 @@ lenv* Cabbagelang_initialize(int argc,char* argv[],char* env[]){
     lenv_add_builtins(e);
     
     mpc_result_t r;
-    char* stdlib="(func{nil}{})(func{true}1)(func {false} 0)(func {fun} (\\{f b} {    func (head f)        (\\ (tail f) b)}))(fun {unpack f l}{    eval (join (list f) l)})(fun {pack f & xs} {f xs})(func {curry} unpack)(func {uncurry} pack)(fun {do & l} {    if (== l nil)        {nil}        {last l}})(fun {let b} {    ((\\{_} b) ())})(fun {not x} {- 1 x})(fun {or x y} {+ x y})(fun {and x y} {* x y})(fun {min & xs} {    if (== (tail xs) nil) {fst xs}        {do            (= {rest} (unpack min(tail xs)))            (= {item} (fst xs))            (if (< item rest) {item} {rest})        }})(fun {max & xs} {    if(== (tail xs) nil) {fst xs}        {do            (= {rest} (unpack min (tail xs)))            (= {item} (fst xs))            (if (< item rest) {item} {rest})        }})(fun {flip f a b} {f b a})(fun {ghost & xs} {eval xs})(fun {comp f g x} {f (g x)})(fun {fst l} { eval (head l) })(fun {snd l} { eval (head (tail l)) })(fun {trd l} { eval (head (tail (tail l))) })(fun {nth n l} {   if (== n 0)    {fst l}    {nth (- n 1) (tail l)}})(fun {last l} {nth (- (len l) 1) l})(fun {take n l} {   if (== n 0)    {nil}    {join (head l) (take (- n 1) (tail l))}})(fun {drop n l} {   if (== n 0)    {l}    {drop (- n 1) (tail l)}})(fun {split n l} {list (take n l) (drop n l)})(fun {elem x l} {   if (== l nil)    {false}    {if (== x (fst l))        {true}        {elem x (tail l)}    }})(fun {take-while f l} {   if (not (unpack f (head l)))    {nil}    {join (head l) (take-while f (tail l))}})(fun {drop-while f l} {   if (not (unpack f (head l)))    {l}    {drop-while f (tail l)}})(fun {map f l} {   if (== l nil)    {nil}    {join (list (f (fst l))) (map f (tail l))}})(\\{x}{>x2}){5 2 11 -7 8 1}(fun {filter f l} {    if (== l nil)     {nil}     {join (if (f (fst l))                {head l}                {nil})    (filter f (tail l))}})(fun {foldl f zl}{    if (== l nil)        {z}        {fold l (f z (fst l)) (tail l)}})(fun {sum l} {foldl + 0 l})(fun {product l} {foldl * 1 l})(fun {select &cs} {    if (== cs nil)      {error \"No Selection Found\"}      {if (fst (fst cs))        {snd (fst cs)}        {unpack select (tail cs)}      }})(func {otherwise} true)(fun {month-day-suffix i}{    select        {(== i 0) \"st\"}        {(== i 1) \"nd\"}        {(== i 3) \"rd\"}        {otherwise \"th\"}})(fun {case x & cs} {    if (== cs nil)        {error \"No Case Found\"}        {if (== x (fst (fst cs)))            {snd (fst cs)}            {unpack case (join (list x) (tail cs))}        }})(fun {day-name x} {   case x        {0 \"Monday\"}        {1 \"Tuesday\"}        {2 \"Wednesday\"}        {3 \"Thursday\"}        {4 \"Friday\"}        {5 \"Saturday\"}        {6 \"Sunday\"}})(fun {fib n} {    select        { (== n 0) 0}        { (== n 1) 1}        { otherwise (+ (fib (- n 1)) (fib (- n2)))}})(fun {lookup x l} {   if (== l nil)       {error \"No Element Found\"}        {do            (= {key} (fst (fst l)))            (= {val} (snd (fst l)))            (if (== key x) {val} {lookup x (tail l)})        }})(fun {zip x y} {   if (or (== x nil) (== y nil))    {nil}    {join (list (join (head x) (head y))) (zip (tail x) (tail y))}})(fun {unzip l} {   if (== l nil)    {{nil nil}}    {do        (= {x} (fst l))        (= {xs} (unzip (tail l)))        (list (join (head x) (fst xs)) (join (tail x) (snd xs)))    }})";
-    mpc_parse("<stdlib>",stdlib,Lispy,&r);
+	char* stdlib="(func {nil} {}) (func {true} 1) (func {false} 0) (func {fun} (\\ {f b} { func (head f) (\\ (tail f) b) })) (fun {unpack f l}{ eval (join (list f) l) }) (fun {pack f & xs} {f xs}) (func {curry} unpack) (func {uncurry} pack) (fun {do & l} { if (== l nil) {nil} {index l -1} }) (fun {let b} { ((\\ {_} b) ()) }) (fun {not x} {- 1 x}) (func {and} *) (func {or} +) (fun {split l n} {list (take l n) (drop l n)}) (fun {reverse l} {take l (- 0 (len l))}) (fun {filter f l} { do(= {result} nil) (= {i} 0) (while{< i (len l)}{ (if(unpack f (list(index l i))){ = {result} (join result (list(index l i))) }{}) (= {i} (+ i 1)) }) (let {result}) }) (fun {drop-while f l} { do(= {i} 0) (= {drop-while-flag} true) (while{and (< i (len l)) drop-while-flag} { (if(unpack f (list(index l i))){(= {i} (+ i 1))}{ = {drop-while-flag} false }) }) (drop l i) }) (fun {take-while f l} { do(= {i} 0) (= {take-while-flag} true) (while{and (< i (len l)) take-while-flag} { (if(unpack f (list(index l i))){(= {i} (+ i 1))}{ = {take-while-flag} false }) }) (take l i) }) (fun {map f l} { do(= {i} 0) (= {result} nil) (while {< i (len l)} { (= {result} (join result (list (f (index l i))))) (= {i} (+ i 1)) }) (let {result}) }) (fun {fold f l z} { do(= {i} 0) (while {< i (len l)} { (= {z} (f z (index l i))) (= {i} (+ i 1)) }) (let {z}) })";
+	mpc_parse("<stdlib>",stdlib,Lispy,&r);
     lval*x =lval_eval(e,lval_read(r.output));
     lval_del(x);
     mpc_ast_delete(r.output);
