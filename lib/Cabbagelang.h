@@ -679,6 +679,10 @@ Public License instead of this License.  But first, please read
 
 #define CABBAGELANG_VERSION "3.2.0"
 
+#if _POSIX_C_SOURCE < 200809L
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
