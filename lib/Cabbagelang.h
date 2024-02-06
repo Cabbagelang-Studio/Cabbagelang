@@ -677,6 +677,8 @@ Public License instead of this License.  But first, please read
 
 */
 
+#define CABBAGELANG_VERSION "3.2.0"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -782,6 +784,8 @@ lenv* CABBAGELANG_DEFAULT_ENVIRONMENT;
 
 thread_ptr_t* thread_list=NULL;
 int thread_list_index=0;
+
+#include"mongoose.h"
 
 char* ltype_name(int t){
     switch(t){
@@ -2175,7 +2179,7 @@ char* encodeBase64(char* str,int len){
             encodeStr[k++] = '=';
     	}else{
     		encodeStr[k++] = base64[(unsigned char)str[i] >> 2];
-            encodeStr[k++] = base64[((unsigned char)str[i] & 0x03) << 4];                                                                                                              //Ä©Î²²¹Á½¸öµÈÓÚºÅ
+            encodeStr[k++] = base64[((unsigned char)str[i] & 0x03) << 4];                                                                                                              //Ä©Î²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Úºï¿½
             encodeStr[k++] = '=';
             encodeStr[k++] = '=';
     	}
@@ -2624,6 +2628,88 @@ lval* builtin_dthread(lenv* e,lval* a){
 	return lval_sexpr();
 }
 
+#include<signal.h>
+
+static int s_debug_level = MG_LL_INFO;
+static char *s_root_dir = ".";
+static char *s_listening_address = "http://0.0.0.0:8000";
+static char *s_enable_hexdump = "no";
+static char *s_ssi_pattern = "#.html";
+
+// Handle interrupts, like Ctrl-C
+static int s_signo;
+static void signal_handler(int signo) {
+  s_signo = signo;
+}
+
+// Event handler for the listening connection.
+// Simply serve static files from `s_root_dir`
+static void mg_handle(struct mg_connection *c, int ev, void *ev_data) {
+  if (ev == MG_EV_HTTP_MSG) {
+    struct mg_http_message *hm = ev_data, tmp = {0};
+    struct mg_str unknown = mg_str_n("?", 1), *cl;
+    struct mg_http_serve_opts opts = {0};
+    opts.root_dir = s_root_dir;
+    opts.ssi_pattern = s_ssi_pattern;
+    mg_http_serve_dir(c, hm, &opts);
+    mg_http_parse((char *) c->send.buf, c->send.len, &tmp);
+    cl = mg_http_get_header(&tmp, "Content-Length");
+    if (cl == NULL) cl = &unknown;
+    MG_INFO(("%.*s %.*s %.*s %.*s", (int) hm->method.len, hm->method.ptr,
+             (int) hm->uri.len, hm->uri.ptr, (int) tmp.uri.len, tmp.uri.ptr,
+             (int) cl->len, cl->ptr));
+  }
+}
+
+lval* builtin_mongoose(lenv* e,lval* a){
+    LASSERT_NUM("mongoose",a,5);
+    LASSERT_TYPE("mongoose",a,0,LVAL_NUM);
+    LASSERT_TYPE("mongoose",a,1,LVAL_STR);
+    LASSERT_TYPE("mongoose",a,2,LVAL_STR);
+    LASSERT_TYPE("mongoose",a,3,LVAL_STR);
+    LASSERT_TYPE("mongoose",a,4,LVAL_NUM);
+
+    char path[MG_PATH_MAX] = ".";
+    struct mg_mgr mgr;
+    struct mg_connection *c;
+
+    s_debug_level = a->cell[4]->num;
+    s_root_dir = a->cell[2]->str;
+    s_listening_address = a->cell[3]->str;
+    s_enable_hexdump = (a->cell[0]->num)?"yes":"no";
+    s_ssi_pattern = a->cell[1]->str;
+    
+    if (strchr(s_root_dir, ',') == NULL) {
+        realpath(s_root_dir, path);
+        s_root_dir = path;
+    }
+
+    // Initialise stuff
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+    mg_log_set(s_debug_level);
+    mg_mgr_init(&mgr);
+    if ((c = mg_http_listen(&mgr, s_listening_address, mg_handle, &mgr)) == NULL) {
+        MG_ERROR(("Cannot listen on %s. Use http://ADDR:PORT or :PORT",
+                s_listening_address));
+        lval_del(a);
+        return lval_sexpr();
+    }
+    if (mg_casecmp(s_enable_hexdump, "yes") == 0) c->is_hexdumping = 1;
+
+    // Start infinite event loop
+    MG_INFO(("Cabbagelang: Mongoose started.\n"));
+    MG_INFO(("Mongoose version : v%s", MG_VERSION));
+    MG_INFO(("Listening on     : %s", s_listening_address));
+    MG_INFO(("Web root         : [%s]", s_root_dir));
+    while (s_signo == 0) mg_mgr_poll(&mgr, 1000);
+    mg_mgr_free(&mgr);
+    MG_INFO(("Exiting on signal %d", s_signo));
+
+    lval_del(a);
+    return lval_sexpr();
+}
+
 void lenv_add_builtins(lenv* e){
 
     lenv_add_builtin(e,"\\",builtin_lambda);
@@ -2710,6 +2796,7 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "cthread", builtin_cthread);
     lenv_add_builtin(e, "jthread", builtin_jthread);
     lenv_add_builtin(e, "dthread", builtin_dthread);
+    lenv_add_builtin(e, "mongoose", builtin_mongoose);
 }
 
 lenv* Cabbagelang_initialize(int argc,char* argv[],char* env[]){
