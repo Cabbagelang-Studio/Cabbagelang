@@ -676,6 +676,8 @@ Public License instead of this License.  But first, please read
 <https://www.gnu.org/licenses/why-not-lgpl.html>.
 
 */
+#ifndef _CABBAGELANG_H
+#define _CABBAGELANG_H 1
 
 #define CABBAGELANG_VERSION "3.2.0"
 
@@ -693,6 +695,31 @@ Public License instead of this License.  But first, please read
 #include <malloc.h>
 #include <stdint.h>
 #include"mpc.h"
+
+#if _WIN32
+#ifndef setenv
+int setenv(const char* name, const char* value, int overwrite) {
+    if((!getenv(name))&&(!overwrite)) return 0;
+    char*command=malloc(4+1+strlen(name)+1+strlen(value)+1);
+    command[0]='\0';
+    strcat(command,"setx ");
+    strcat(command,name);
+    strcat(command," ");
+    strcat(command,value);
+    freopen("nul","w",stdout);
+    int result=system(command);
+    freopen("con","w",stdout);
+    free(command);
+    return result;
+}
+#endif
+#ifndef unsetenv
+int unsetenv(const char* name) {
+    if(!getenv(name)) return -1;
+    return setenv(name,"\"\"",1);
+}
+#endif
+#endif
 
 int argc_glob;
 int env_length=0;
@@ -2006,6 +2033,7 @@ void lenv_add_builtin(lenv* e,char* name,lbuiltin func){
     lval_del(k);
     lval_del(v);
 }
+#include"glinter.h"
 
 lval* builtin_var(lenv* e,lval* a,char* func){
     LASSERT_TYPE(func,a,0,LVAL_QEXPR);
@@ -2072,6 +2100,11 @@ lval* builtin_print(lenv* e,lval* a){
 lval* builtin_load(lenv* e,lval* a){
     LASSERT_NUM("import", a, 1);
     LASSERT_TYPE("import", a, 0, LVAL_STR);
+    //Builtin leaves
+    if(!strcmp(a->cell[0]->str,"glinter")){
+        glinter_init(e);
+        return lval_sexpr();
+    }
 
     mpc_result_t r;
     if(mpc_parse_contents(a->cell[0]->str,Lispy,&r)){
@@ -2299,7 +2332,10 @@ lval* builtin_getenv(lenv* e,lval* a){
 	LASSERT_NUM("getenv",a,1);
 	LASSERT_TYPE("getenv",a,0,LVAL_STR);
 	char* value=getenv(a->cell[0]->str);
-	if(!value) return lval_str("");
+	if(!value){
+        lval_del(a);
+        return lval_sexpr();
+    }
 	lval_del(a);
 	return lval_str(value);
 } 
@@ -2895,3 +2931,4 @@ lval* Cabbagelang_load_file(lenv* e, char* filename){
     return x;
 }
 
+#endif
