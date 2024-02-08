@@ -836,6 +836,7 @@ char* ltype_name(int t){
 void lval_print_str(lval*);
 void lval_expr_print(lval*,char,char);
 void lval_print(lval*);
+void lval_constant(lenv*,char*,lval*);
 lenv* lenv_new();
 lenv* lenv_copy(lenv*);
 
@@ -2069,6 +2070,15 @@ lval* builtin_def(lenv* e,lval* a){
 
 lval* builtin_put(lenv* e,lval* a){
     return builtin_var(e,a,"=");
+}
+
+void lval_constant(lenv* e,char* name,lval* value){
+    lval* constant_name=lval_qexpr();
+    constant_name=lval_add(constant_name,lval_sym(name));
+    lval* arguments=lval_sexpr();
+    arguments=lval_add(arguments,constant_name);
+    arguments=lval_add(arguments,value);
+    builtin_def(e,arguments);
 }
 
 lval* builtin_lambda(lenv* e,lval* a){
