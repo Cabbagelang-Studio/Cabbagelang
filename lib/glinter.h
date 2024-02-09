@@ -141,6 +141,37 @@ lval* builtin_gl_poll_events(lenv*e,lval* a){
     return lval_sexpr();
 }
 
+lval* builtin_gl_get_key(lenv*e,lval* a){
+    LASSERT_NUM("gl.get_key",a,2);
+    LASSERT_TYPE("gl.get_key",a,0,LVAL_NUM);
+    LASSERT_TYPE("gl.get_key",a,1,LVAL_NUM);
+    GLFW_INIT_CHECK();
+    int window_id=a->cell[0]->num;
+    int key_id=a->cell[1]->num;
+    if(window_id>=next_window_index){
+        lval_del(a);
+        return lval_err("Invalid GLFW window: %d",window_id);
+    }int keyResult=glfwGetKey(windows_list[window_id],key_id);
+    lval_del(a);
+    return lval_num(keyResult);
+}
+
+lval* builtin_gl_set_window_should_close(lenv*e,lval* a){
+    LASSERT_NUM("gl.set_window_should_close",a,2);
+    LASSERT_TYPE("gl.set_window_should_close",a,0,LVAL_NUM);
+    LASSERT_TYPE("gl.set_window_should_close",a,1,LVAL_NUM);
+    GLFW_INIT_CHECK();
+    int window_id=a->cell[0]->num;
+    int close=a->cell[1]->num;
+    if(window_id>=next_window_index){
+        lval_del(a);
+        return lval_err("Invalid GLFW window: %d",window_id);
+    }
+    glfwSetWindowShouldClose(windows_list[window_id],close);
+    lval_del(a);
+    return lval_sexpr();
+}
+
 void glinter_init(lenv* e){
     glfwSetErrorCallback(glinter_error_callback);
 
@@ -228,6 +259,129 @@ void glinter_init(lenv* e){
     lval_constant(e,"gl.GLFW_X11_CLASS_NAME",lval_num(GLFW_X11_CLASS_NAME));
     lval_constant(e,"gl.GLFW_X11_INSTANCE_NAME",lval_num(GLFW_X11_INSTANCE_NAME));
 
+    lval_constant(e,"gl.GLFW_KEY_SPACE",lval_num(GLFW_KEY_SPACE));
+    lval_constant(e,"gl.GLFW_KEY_APOSTROPHE",lval_num(GLFW_KEY_APOSTROPHE));
+    lval_constant(e,"gl.GLFW_KEY_COMMA",lval_num(GLFW_KEY_COMMA));
+    lval_constant(e,"gl.GLFW_KEY_MINUS",lval_num(GLFW_KEY_MINUS));
+    lval_constant(e,"gl.GLFW_KEY_PERIOD",lval_num(GLFW_KEY_PERIOD));
+    lval_constant(e,"gl.GLFW_KEY_SLASH",lval_num(GLFW_KEY_SLASH));
+    lval_constant(e,"gl.GLFW_KEY_0",lval_num(GLFW_KEY_0));
+    lval_constant(e,"gl.GLFW_KEY_1",lval_num(GLFW_KEY_1));
+    lval_constant(e,"gl.GLFW_KEY_2",lval_num(GLFW_KEY_2));
+    lval_constant(e,"gl.GLFW_KEY_3",lval_num(GLFW_KEY_3));
+    lval_constant(e,"gl.GLFW_KEY_4",lval_num(GLFW_KEY_4));
+    lval_constant(e,"gl.GLFW_KEY_5",lval_num(GLFW_KEY_5));
+    lval_constant(e,"gl.GLFW_KEY_6",lval_num(GLFW_KEY_6));
+    lval_constant(e,"gl.GLFW_KEY_7",lval_num(GLFW_KEY_7));
+    lval_constant(e,"gl.GLFW_KEY_8",lval_num(GLFW_KEY_8));
+    lval_constant(e,"gl.GLFW_KEY_9",lval_num(GLFW_KEY_9));
+    lval_constant(e,"gl.GLFW_KEY_SEMICOLON",lval_num(GLFW_KEY_SEMICOLON));
+    lval_constant(e,"gl.GLFW_KEY_EQUAL",lval_num(GLFW_KEY_EQUAL));
+    lval_constant(e,"gl.GLFW_KEY_A",lval_num(GLFW_KEY_A));
+    lval_constant(e,"gl.GLFW_KEY_B",lval_num(GLFW_KEY_B));
+    lval_constant(e,"gl.GLFW_KEY_C",lval_num(GLFW_KEY_C));
+    lval_constant(e,"gl.GLFW_KEY_D",lval_num(GLFW_KEY_D));
+    lval_constant(e,"gl.GLFW_KEY_E",lval_num(GLFW_KEY_E));
+    lval_constant(e,"gl.GLFW_KEY_F",lval_num(GLFW_KEY_F));
+    lval_constant(e,"gl.GLFW_KEY_G",lval_num(GLFW_KEY_G));
+    lval_constant(e,"gl.GLFW_KEY_H",lval_num(GLFW_KEY_H));
+    lval_constant(e,"gl.GLFW_KEY_I",lval_num(GLFW_KEY_I));
+    lval_constant(e,"gl.GLFW_KEY_J",lval_num(GLFW_KEY_J));
+    lval_constant(e,"gl.GLFW_KEY_K",lval_num(GLFW_KEY_K));
+    lval_constant(e,"gl.GLFW_KEY_L",lval_num(GLFW_KEY_L));
+    lval_constant(e,"gl.GLFW_KEY_M",lval_num(GLFW_KEY_M));
+    lval_constant(e,"gl.GLFW_KEY_N",lval_num(GLFW_KEY_N));
+    lval_constant(e,"gl.GLFW_KEY_O",lval_num(GLFW_KEY_O));
+    lval_constant(e,"gl.GLFW_KEY_P",lval_num(GLFW_KEY_P));
+    lval_constant(e,"gl.GLFW_KEY_Q",lval_num(GLFW_KEY_Q));
+    lval_constant(e,"gl.GLFW_KEY_R",lval_num(GLFW_KEY_R));
+    lval_constant(e,"gl.GLFW_KEY_S",lval_num(GLFW_KEY_S));
+    lval_constant(e,"gl.GLFW_KEY_T",lval_num(GLFW_KEY_T));
+    lval_constant(e,"gl.GLFW_KEY_U",lval_num(GLFW_KEY_U));
+    lval_constant(e,"gl.GLFW_KEY_V",lval_num(GLFW_KEY_V));
+    lval_constant(e,"gl.GLFW_KEY_W",lval_num(GLFW_KEY_W));
+    lval_constant(e,"gl.GLFW_KEY_X",lval_num(GLFW_KEY_X));
+    lval_constant(e,"gl.GLFW_KEY_Y",lval_num(GLFW_KEY_Y));
+    lval_constant(e,"gl.GLFW_KEY_Z",lval_num(GLFW_KEY_Z));
+    lval_constant(e,"gl.GLFW_KEY_LEFT_BRACKET",lval_num(GLFW_KEY_LEFT_BRACKET));
+    lval_constant(e,"gl.GLFW_KEY_BACKSLASH",lval_num(GLFW_KEY_BACKSLASH));
+    lval_constant(e,"gl.GLFW_KEY_RIGHT_BRACKET",lval_num(GLFW_KEY_RIGHT_BRACKET));
+    lval_constant(e,"gl.GLFW_KEY_GRAVE_ACCENT",lval_num(GLFW_KEY_GRAVE_ACCENT));
+    lval_constant(e,"gl.GLFW_KEY_WORLD_1",lval_num(GLFW_KEY_WORLD_1));
+    lval_constant(e,"gl.GLFW_KEY_WORLD_2",lval_num(GLFW_KEY_WORLD_2));
+    lval_constant(e,"gl.GLFW_KEY_ESCAPE",lval_num(GLFW_KEY_ESCAPE));
+    lval_constant(e,"gl.GLFW_KEY_ENTER",lval_num(GLFW_KEY_ENTER));
+    lval_constant(e,"gl.GLFW_KEY_TAB",lval_num(GLFW_KEY_TAB));
+    lval_constant(e,"gl.GLFW_KEY_BACKSPACE",lval_num(GLFW_KEY_BACKSPACE));
+    lval_constant(e,"gl.GLFW_KEY_INSERT",lval_num(GLFW_KEY_INSERT));
+    lval_constant(e,"gl.GLFW_KEY_DELETE",lval_num(GLFW_KEY_DELETE));
+    lval_constant(e,"gl.GLFW_KEY_RIGHT",lval_num(GLFW_KEY_RIGHT));
+    lval_constant(e,"gl.GLFW_KEY_LEFT",lval_num(GLFW_KEY_LEFT));
+    lval_constant(e,"gl.GLFW_KEY_DOWN",lval_num(GLFW_KEY_DOWN));
+    lval_constant(e,"gl.GLFW_KEY_UP",lval_num(GLFW_KEY_UP));
+    lval_constant(e,"gl.GLFW_KEY_PAGE_UP",lval_num(GLFW_KEY_PAGE_UP));
+    lval_constant(e,"gl.GLFW_KEY_PAGE_DOWN",lval_num(GLFW_KEY_PAGE_DOWN));
+    lval_constant(e,"gl.GLFW_KEY_HOME",lval_num(GLFW_KEY_HOME));
+    lval_constant(e,"gl.GLFW_KEY_END",lval_num(GLFW_KEY_END));
+    lval_constant(e,"gl.GLFW_KEY_CAPS_LOCK",lval_num(GLFW_KEY_CAPS_LOCK));
+    lval_constant(e,"gl.GLFW_KEY_SCROLL_LOCK",lval_num(GLFW_KEY_SCROLL_LOCK));
+    lval_constant(e,"gl.GLFW_KEY_NUM_LOCK",lval_num(GLFW_KEY_NUM_LOCK));
+    lval_constant(e,"gl.GLFW_KEY_PRINT_SCREEN",lval_num(GLFW_KEY_PRINT_SCREEN));
+    lval_constant(e,"gl.GLFW_KEY_PAUSE",lval_num(GLFW_KEY_PAUSE));
+    lval_constant(e,"gl.GLFW_KEY_F1",lval_num(GLFW_KEY_F1));
+    lval_constant(e,"gl.GLFW_KEY_F2",lval_num(GLFW_KEY_F2));
+    lval_constant(e,"gl.GLFW_KEY_F3",lval_num(GLFW_KEY_F3));
+    lval_constant(e,"gl.GLFW_KEY_F4",lval_num(GLFW_KEY_F4));
+    lval_constant(e,"gl.GLFW_KEY_F5",lval_num(GLFW_KEY_F5));
+    lval_constant(e,"gl.GLFW_KEY_F6",lval_num(GLFW_KEY_F6));
+    lval_constant(e,"gl.GLFW_KEY_F7",lval_num(GLFW_KEY_F7));
+    lval_constant(e,"gl.GLFW_KEY_F8",lval_num(GLFW_KEY_F8));
+    lval_constant(e,"gl.GLFW_KEY_F9",lval_num(GLFW_KEY_F9));
+    lval_constant(e,"gl.GLFW_KEY_F10",lval_num(GLFW_KEY_F10));
+    lval_constant(e,"gl.GLFW_KEY_F11",lval_num(GLFW_KEY_F11));
+    lval_constant(e,"gl.GLFW_KEY_F12",lval_num(GLFW_KEY_F12));
+    lval_constant(e,"gl.GLFW_KEY_F13",lval_num(GLFW_KEY_F13));
+    lval_constant(e,"gl.GLFW_KEY_F14",lval_num(GLFW_KEY_F14));
+    lval_constant(e,"gl.GLFW_KEY_F15",lval_num(GLFW_KEY_F15));
+    lval_constant(e,"gl.GLFW_KEY_F16",lval_num(GLFW_KEY_F16));
+    lval_constant(e,"gl.GLFW_KEY_F17",lval_num(GLFW_KEY_F17));
+    lval_constant(e,"gl.GLFW_KEY_F18",lval_num(GLFW_KEY_F18));
+    lval_constant(e,"gl.GLFW_KEY_F19",lval_num(GLFW_KEY_F19));
+    lval_constant(e,"gl.GLFW_KEY_F20",lval_num(GLFW_KEY_F20));
+    lval_constant(e,"gl.GLFW_KEY_F21",lval_num(GLFW_KEY_F21));
+    lval_constant(e,"gl.GLFW_KEY_F22",lval_num(GLFW_KEY_F22));
+    lval_constant(e,"gl.GLFW_KEY_F23",lval_num(GLFW_KEY_F23));
+    lval_constant(e,"gl.GLFW_KEY_F24",lval_num(GLFW_KEY_F24));
+    lval_constant(e,"gl.GLFW_KEY_F25",lval_num(GLFW_KEY_F25));
+    lval_constant(e,"gl.GLFW_KEY_KP_0",lval_num(GLFW_KEY_KP_0));
+    lval_constant(e,"gl.GLFW_KEY_KP_1",lval_num(GLFW_KEY_KP_1));
+    lval_constant(e,"gl.GLFW_KEY_KP_2",lval_num(GLFW_KEY_KP_2));
+    lval_constant(e,"gl.GLFW_KEY_KP_3",lval_num(GLFW_KEY_KP_3));
+    lval_constant(e,"gl.GLFW_KEY_KP_4",lval_num(GLFW_KEY_KP_4));
+    lval_constant(e,"gl.GLFW_KEY_KP_5",lval_num(GLFW_KEY_KP_5));
+    lval_constant(e,"gl.GLFW_KEY_KP_6",lval_num(GLFW_KEY_KP_6));
+    lval_constant(e,"gl.GLFW_KEY_KP_7",lval_num(GLFW_KEY_KP_7));
+    lval_constant(e,"gl.GLFW_KEY_KP_8",lval_num(GLFW_KEY_KP_8));
+    lval_constant(e,"gl.GLFW_KEY_KP_9",lval_num(GLFW_KEY_KP_9));
+    lval_constant(e,"gl.GLFW_KEY_KP_DECIMAL",lval_num(GLFW_KEY_KP_DECIMAL));
+    lval_constant(e,"gl.GLFW_KEY_KP_DIVIDE",lval_num(GLFW_KEY_KP_DIVIDE));
+    lval_constant(e,"gl.GLFW_KEY_KP_MULTIPLY",lval_num(GLFW_KEY_KP_MULTIPLY));
+    lval_constant(e,"gl.GLFW_KEY_KP_SUBTRACT",lval_num(GLFW_KEY_KP_SUBTRACT));
+    lval_constant(e,"gl.GLFW_KEY_KP_ADD",lval_num(GLFW_KEY_KP_ADD));
+    lval_constant(e,"gl.GLFW_KEY_KP_ENTER",lval_num(GLFW_KEY_KP_ENTER));
+    lval_constant(e,"gl.GLFW_KEY_KP_EQUAL",lval_num(GLFW_KEY_KP_EQUAL));
+    lval_constant(e,"gl.GLFW_KEY_LEFT_SHIFT",lval_num(GLFW_KEY_LEFT_SHIFT));
+    lval_constant(e,"gl.GLFW_KEY_LEFT_CONTROL",lval_num(GLFW_KEY_LEFT_CONTROL));
+    lval_constant(e,"gl.GLFW_KEY_LEFT_ALT",lval_num(GLFW_KEY_LEFT_ALT));
+    lval_constant(e,"gl.GLFW_KEY_LEFT_SUPER",lval_num(GLFW_KEY_LEFT_SUPER));
+    lval_constant(e,"gl.GLFW_KEY_RIGHT_SHIFT",lval_num(GLFW_KEY_RIGHT_SHIFT));
+    lval_constant(e,"gl.GLFW_KEY_RIGHT_CONTROL",lval_num(GLFW_KEY_RIGHT_CONTROL));
+    lval_constant(e,"gl.GLFW_KEY_RIGHT_ALT",lval_num(GLFW_KEY_RIGHT_ALT));
+    lval_constant(e,"gl.GLFW_KEY_RIGHT_SUPER",lval_num(GLFW_KEY_RIGHT_SUPER));
+    lval_constant(e,"gl.GLFW_KEY_MENU",lval_num(GLFW_KEY_MENU));
+    lval_constant(e,"gl.GLFW_KEY_LAST",lval_num(GLFW_KEY_LAST));
+
+
     lenv_add_builtin(e,"gl.init",builtin_gl_init);
     lenv_add_builtin(e,"gl.terminate",builtin_gl_terminate);
     lenv_add_builtin(e, "gl.create_window",builtin_gl_create_window);
@@ -237,4 +391,6 @@ void glinter_init(lenv* e){
     lenv_add_builtin(e, "gl.window_should_close",builtin_gl_window_should_close);
     lenv_add_builtin(e, "gl.swap_buffers",builtin_gl_swap_buffers);
     lenv_add_builtin(e, "gl.poll_events",builtin_gl_poll_events);
+    lenv_add_builtin(e, "gl.get_key",builtin_gl_get_key);
+    lenv_add_builtin(e, "gl.set_window_should_close",builtin_gl_set_window_should_close);
 }
