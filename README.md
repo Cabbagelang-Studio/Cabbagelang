@@ -27,6 +27,8 @@ This is the official repository of Cabbagelang Programming Language.
 
 ## Dependences
 
+- **OpenGL**
+
 - **GLFW**
 
 - **GNU Readline** *For Linux*

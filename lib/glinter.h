@@ -2,13 +2,15 @@
 #include<stdio.h>
 #include<malloc.h>
 #include"GLFW/glfw3.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include"stb_image.h"
 
 #define GLFW_INIT_CHECK() if(!GLFW_INITIALIZED){lval_del(a);return lval_err("GLFW is not initialized");}
 
 GLFWwindow** windows_list=NULL;
 int next_window_index=1;
-GLFWmonitor** monitors_list=NULL;
-int next_monitor_index=1;
+unsigned char** images_list=NULL;
+int image_index=0;
 
 int GLFW_INITIALIZED=0;
 
@@ -21,8 +23,7 @@ lval* builtin_gl_init(lenv*e,lval* a){
     LASSERT_TYPE("gl.init",a,0,LVAL_SEXPR);
     windows_list=malloc(1*sizeof(GLFWwindow*));
     windows_list[0]=NULL;
-    monitors_list=malloc(1*sizeof(GLFWmonitor*));
-    monitors_list[0]=NULL;
+    images_list=malloc(1*sizeof(unsigned char*));
     int return_code=glfwInit();
     if(return_code){
         GLFW_INITIALIZED=1;
@@ -35,31 +36,29 @@ lval* builtin_gl_terminate(lenv*e,lval* a){
     LASSERT_TYPE("gl.terminate",a,0,LVAL_SEXPR);
     GLFW_INITIALIZED=0;
     glfwTerminate();
+    for(int i=0;i<image_index;i++){
+        stbi_image_free(images_list[i]);
+    }
     return lval_sexpr();
 }
 
 lval* builtin_gl_create_window(lenv*e,lval* a){
-    LASSERT_NUM("gl.create_window",a,5);
+    LASSERT_NUM("gl.create_window",a,4);
     LASSERT_TYPE("gl.create_window",a,0,LVAL_NUM);
     LASSERT_TYPE("gl.create_window",a,1,LVAL_NUM);
     LASSERT_TYPE("gl.create_window",a,2,LVAL_STR);
     LASSERT_TYPE("gl.create_window",a,3,LVAL_NUM);
-    LASSERT_TYPE("gl.create_window",a,4,LVAL_NUM);
     GLFW_INIT_CHECK();
     int width=a->cell[0]->num;
     int height=a->cell[1]->num;
     char* title=a->cell[2]->str;
-    int monitor_id=a->cell[3]->num;
-    int share_id=a->cell[4]->num;
-    if(monitor_id>=next_monitor_index){
-        lval_del(a);
-        return lval_err("Invalid GLFW monitor: %d",monitor_id);
-    }if(share_id>=next_window_index){
+    int share_id=a->cell[3]->num;
+    if(share_id>=next_window_index){
         lval_del(a);
         return lval_err("Invalid GLFW window: %d",share_id);
     }
 
-    GLFWwindow* window=glfwCreateWindow(width,height,title,monitors_list[monitor_id],windows_list[share_id]);
+    GLFWwindow* window=glfwCreateWindow(width,height,title,NULL,windows_list[share_id]);
     if(!window){
         lval_del(a);
         return lval_err("Failed to create window.");
@@ -212,6 +211,24 @@ lval* builtin_gl_get_window_size(lenv*e,lval* a){
     result=lval_add(result,lval_num(width));
     result=lval_add(result,lval_num(height));
     return result;
+}
+
+lval* builtin_gl_load_image(lenv*e,lval* a){
+    LASSERT_NUM("gl.load_image",a,1);
+    LASSERT_TYPE("gl.load_image",a,0,LVAL_STR);
+    GLFW_INIT_CHECK();
+    int img_width, img_height, img_channels;
+    char* _image_name=a->cell[0]->str;
+    char* image_name=a->cell[0]->str;
+    unsigned char* img_data = stbi_load(_image_name, &img_width, &img_height, &img_channels, 0);
+    if(!img_data){
+        lval_del(a);
+        return lval_err("Failed to open image: %s",image_name);
+    }
+    images_list[image_index]=img_data;
+    image_index++;
+    images_list=realloc(images_list,(image_index+1)*sizeof(unsigned char*));
+    return lval_num(image_index-1);
 }
 
 void glinter_init(lenv* e){
@@ -439,4 +456,5 @@ void glinter_init(lenv* e){
     lenv_add_builtin(e, "gl.get_time",builtin_gl_get_time);
     lenv_add_builtin(e, "gl.set_time",builtin_gl_set_time);
     lenv_add_builtin(e, "gl.get_window_size",builtin_gl_get_window_size);
+    lenv_add_builtin(e, "gl.load_image",builtin_gl_load_image);
 }
