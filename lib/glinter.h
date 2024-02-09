@@ -133,6 +133,15 @@ lval* builtin_gl_swap_buffers(lenv*e,lval* a){
     return lval_sexpr();
 }
 
+lval* builtin_gl_swap_interval(lenv*e,lval* a){
+    LASSERT_NUM("gl.swap_interval",a,1);
+    LASSERT_TYPE("gl.swap_interval",a,0,LVAL_NUM);
+    GLFW_INIT_CHECK();
+    int interval=a->cell[0]->num;
+    glfwSwapInterval(interval);
+    return lval_sexpr();
+}
+
 lval* builtin_gl_poll_events(lenv*e,lval* a){
     LASSERT_NUM("gl.poll_events",a,1);
     LASSERT_TYPE("gl.poll_events",a,0,LVAL_SEXPR);
@@ -170,6 +179,39 @@ lval* builtin_gl_set_window_should_close(lenv*e,lval* a){
     glfwSetWindowShouldClose(windows_list[window_id],close);
     lval_del(a);
     return lval_sexpr();
+}
+
+lval* builtin_gl_get_time(lenv*e,lval* a){
+    LASSERT_NUM("gl.get_time",a,1);
+    LASSERT_TYPE("gl.get_time",a,0,LVAL_SEXPR);
+    GLFW_INIT_CHECK();
+    double time=glfwGetTime();
+    return lval_num(time);
+}
+
+lval* builtin_gl_set_time(lenv*e,lval* a){
+    LASSERT_NUM("gl.set_time",a,1);
+    LASSERT_TYPE("gl.set_time",a,0,LVAL_NUM);
+    GLFW_INIT_CHECK();
+    glfwSetTime(a->cell[0]->num);
+    return lval_sexpr();
+}
+
+lval* builtin_gl_get_window_size(lenv*e,lval* a){
+    LASSERT_NUM("gl.get_window_size",a,1);
+    LASSERT_TYPE("gl.get_window_size",a,0,LVAL_NUM);
+    GLFW_INIT_CHECK();
+    int window_id=a->cell[0]->num;
+    if(window_id>=next_window_index){
+        lval_del(a);
+        return lval_err("Invalid GLFW window: %d",window_id);
+    }
+    int width,height;
+    glfwGetWindowSize(windows_list[window_id],&width,&height);
+    lval* result=lval_sexpr();
+    result=lval_add(result,lval_num(width));
+    result=lval_add(result,lval_num(height));
+    return result;
 }
 
 void glinter_init(lenv* e){
@@ -390,7 +432,11 @@ void glinter_init(lenv* e){
     lenv_add_builtin(e, "gl.make_context_current",builtin_gl_make_context_current);
     lenv_add_builtin(e, "gl.window_should_close",builtin_gl_window_should_close);
     lenv_add_builtin(e, "gl.swap_buffers",builtin_gl_swap_buffers);
+    lenv_add_builtin(e, "gl.swap_interval",builtin_gl_swap_interval);
     lenv_add_builtin(e, "gl.poll_events",builtin_gl_poll_events);
     lenv_add_builtin(e, "gl.get_key",builtin_gl_get_key);
     lenv_add_builtin(e, "gl.set_window_should_close",builtin_gl_set_window_should_close);
+    lenv_add_builtin(e, "gl.get_time",builtin_gl_get_time);
+    lenv_add_builtin(e, "gl.set_time",builtin_gl_set_time);
+    lenv_add_builtin(e, "gl.get_window_size",builtin_gl_get_window_size);
 }
