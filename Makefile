@@ -20,16 +20,16 @@ endif
 unix: cabbage
 	@echo "$(BIT)-bit compiled successfully."
 cabbage: main.c
-	gcc main.c -o cabbage $(GCC_FLAG) -lm -lreadline -lcurl -lglfw -lGL
+	gcc main.c -o cabbage $(GCC_FLAG) -lm -lreadline -lcurl -lglfw -lGL -lGLU
 
 cabbage.ico.o: cabbage.rc
 	windres cabbage.rc -o cabbage.ico.o $(ICO_FLAG)
 windows: cabbage.exe cabbagew.exe
 	@echo $(BIT)-bit compiled successfully.
 cabbage.exe: main.c cabbage.ico.o cabbagew.exe
-	gcc main.c cabbage.ico.o -o cabbage $(GCC_FLAG) -lws2_32 -lwinmm -lwininet -lglfw3 -lgdi32 -lopengl32 -static
+	gcc main.c cabbage.ico.o -o cabbage $(GCC_FLAG) -lws2_32 -lwinmm -lwininet -lglfw3 -lgdi32 -lopengl32 -lglu32 -static
 cabbagew.exe: main.c cabbage.ico.o
-	gcc main.c cabbage.ico.o -o cabbagew $(GCC_FLAG) -mwindows  -lws2_32 -lwinmm -lwininet -lglfw3 -lgdi32 -lopengl32 -static
+	gcc main.c cabbage.ico.o -o cabbagew $(GCC_FLAG) -mwindows  -lws2_32 -lwinmm -lwininet -lglfw3 -lgdi32 -lopengl32 -lglu32 -static
 
 clean:
 	rm -f cabbage.exe cabbagew.exe cabbage cabbage.ico.o

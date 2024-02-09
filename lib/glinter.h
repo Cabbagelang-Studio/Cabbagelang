@@ -1,6 +1,8 @@
 // Builtin leaf for Windows
 #include<stdio.h>
 #include<malloc.h>
+#include<GL/gl.h>
+#include<GL/glu.h>
 #include"GLFW/glfw3.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include"stb_image.h"
@@ -11,6 +13,7 @@ GLFWwindow** windows_list=NULL;
 int next_window_index=1;
 unsigned char** images_list=NULL;
 int image_index=0;
+int** images_info_list=NULL;
 
 int GLFW_INITIALIZED=0;
 
@@ -24,10 +27,15 @@ lval* builtin_gl_init(lenv*e,lval* a){
     windows_list=malloc(1*sizeof(GLFWwindow*));
     windows_list[0]=NULL;
     images_list=malloc(1*sizeof(unsigned char*));
+    images_info_list=malloc(1*sizeof(int*));
     int return_code=glfwInit();
     if(return_code){
         GLFW_INITIALIZED=1;
     }
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_TEXTURE_2D);
+    lval_del(a);
     return lval_num(return_code);
 }
 
@@ -38,7 +46,7 @@ lval* builtin_gl_terminate(lenv*e,lval* a){
     glfwTerminate();
     for(int i=0;i<image_index;i++){
         stbi_image_free(images_list[i]);
-    }
+    }lval_del(a);
     return lval_sexpr();
 }
 
@@ -79,6 +87,7 @@ lval* builtin_gl_destroy_window(lenv*e,lval* a){
         return lval_err("Invalid GLFW window: %d",window_id);
     }
     glfwDestroyWindow(windows_list[window_id]);
+    lval_del(a);
     return lval_sexpr();
 }
 
@@ -90,6 +99,7 @@ lval* builtin_gl_window_hint(lenv* e,lval* a){
     int hint=a->cell[0]->num;
     int value=a->cell[1]->num;
     glfwWindowHint(hint,value);
+    lval_del(a);
     return lval_sexpr();
 }
 
@@ -103,6 +113,7 @@ lval* builtin_gl_make_context_current(lenv*e,lval* a){
         return lval_err("Invalid GLFW window: %d",window_id);
     }
     glfwMakeContextCurrent(windows_list[window_id]);
+    lval_del(a);
     return lval_sexpr();
 }
 
@@ -116,6 +127,7 @@ lval* builtin_gl_window_should_close(lenv*e,lval* a){
         return lval_err("Invalid GLFW window: %d",window_id);
     }
     int result=glfwWindowShouldClose(windows_list[window_id]);
+    lval_del(a);
     return lval_num(result);
 }
 
@@ -129,6 +141,7 @@ lval* builtin_gl_swap_buffers(lenv*e,lval* a){
         return lval_err("Invalid GLFW window: %d",window_id);
     }
     glfwSwapBuffers(windows_list[window_id]);
+    lval_del(a);
     return lval_sexpr();
 }
 
@@ -138,6 +151,7 @@ lval* builtin_gl_swap_interval(lenv*e,lval* a){
     GLFW_INIT_CHECK();
     int interval=a->cell[0]->num;
     glfwSwapInterval(interval);
+    lval_del(a);
     return lval_sexpr();
 }
 
@@ -146,6 +160,7 @@ lval* builtin_gl_poll_events(lenv*e,lval* a){
     LASSERT_TYPE("gl.poll_events",a,0,LVAL_SEXPR);
     GLFW_INIT_CHECK();
     glfwPollEvents();
+    lval_del(a);
     return lval_sexpr();
 }
 
@@ -193,6 +208,7 @@ lval* builtin_gl_set_time(lenv*e,lval* a){
     LASSERT_TYPE("gl.set_time",a,0,LVAL_NUM);
     GLFW_INIT_CHECK();
     glfwSetTime(a->cell[0]->num);
+    lval_del(a);
     return lval_sexpr();
 }
 
@@ -210,6 +226,7 @@ lval* builtin_gl_get_window_size(lenv*e,lval* a){
     lval* result=lval_sexpr();
     result=lval_add(result,lval_num(width));
     result=lval_add(result,lval_num(height));
+    lval_del(a);
     return result;
 }
 
@@ -225,10 +242,93 @@ lval* builtin_gl_load_image(lenv*e,lval* a){
         lval_del(a);
         return lval_err("Failed to open image: %s",image_name);
     }
+    int image_info[3]={img_width,img_height,img_channels};
     images_list[image_index]=img_data;
+    images_info_list[image_index]=image_info;
     image_index++;
     images_list=realloc(images_list,(image_index+1)*sizeof(unsigned char*));
+    images_info_list=realloc(images_info_list,(image_index+1)*sizeof(int*));
+    lval_del(a);
     return lval_num(image_index-1);
+}
+
+lval* paint_image(int image_id,int x,int y,int height,int width){
+    if(image_id>=image_index){
+        return lval_err("Invalid image: %d",image_id);
+    }
+
+    int image_width=images_info_list[image_id][0];
+    int image_height=images_info_list[image_id][1];
+    int image_channel=images_info_list[image_id][2];
+    unsigned char* image_data=images_list[image_id];
+
+    if (width == -1) width = image_width;
+    if (height == -1) height = image_height;
+
+    glEnable(GL_TEXTURE_2D);
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glTexImage2D(GL_TEXTURE_2D, 0, image_channel==3?GL_RGB:GL_RGBA, image_width, image_height, 0, image_channel==3?GL_RGB:GL_RGBA, GL_UNSIGNED_BYTE, image_data);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2i(x, y);
+
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex2i(x + width, y);
+
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex2i(x + width, y + height);
+
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex2i(x, y + height);
+    glEnd();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDisable(GL_BLEND);
+    glDisable(GL_TEXTURE_2D);
+
+    glFlush();
+
+    return lval_sexpr();
+}
+
+lval* builtin_gl_paint(lenv*e,lval* a){
+    LASSERT_NUM("gl.paint",a,5);
+    LASSERT_TYPE("gl.paint",a,0,LVAL_NUM);
+    LASSERT_TYPE("gl.paint",a,1,LVAL_NUM);
+    LASSERT_TYPE("gl.paint",a,2,LVAL_NUM);
+    LASSERT_TYPE("gl.paint",a,3,LVAL_NUM);
+    LASSERT_TYPE("gl.paint",a,4,LVAL_NUM);
+    GLFW_INIT_CHECK();
+    int image_id=a->cell[0]->num;
+    int x=a->cell[1]->num;
+    int y=a->cell[2]->num;
+    int width=a->cell[3]->num;
+    int height=a->cell[4]->num;
+    lval* result=paint_image(image_id,x,y,width,height);
+    lval_del(a);
+    return result;
+}
+
+lval* builtin_gl_clear(lenv*e,lval* a){
+    LASSERT_NUM("gl.clear",a,1);
+    LASSERT_TYPE("gl.clear",a,0,LVAL_NUM);
+    GLFW_INIT_CHECK();
+    int mask=a->cell[0]->num;
+    glClear(mask);
+    lval_del(a);
+    return lval_sexpr();
 }
 
 void glinter_init(lenv* e){
@@ -440,6 +540,9 @@ void glinter_init(lenv* e){
     lval_constant(e,"gl.GLFW_KEY_MENU",lval_num(GLFW_KEY_MENU));
     lval_constant(e,"gl.GLFW_KEY_LAST",lval_num(GLFW_KEY_LAST));
 
+    lval_constant(e,"gl.GL_COLOR_BUFFER_BIT",lval_num(GL_COLOR_BUFFER_BIT));
+    lval_constant(e,"gl.GL_DEPTH_BUFFER_BIT",lval_num(GL_DEPTH_BUFFER_BIT));
+    lval_constant(e,"gl.GL_STENCIL_BUFFER_BIT",lval_num(GL_STENCIL_BUFFER_BIT));
 
     lenv_add_builtin(e,"gl.init",builtin_gl_init);
     lenv_add_builtin(e,"gl.terminate",builtin_gl_terminate);
@@ -457,4 +560,6 @@ void glinter_init(lenv* e){
     lenv_add_builtin(e, "gl.set_time",builtin_gl_set_time);
     lenv_add_builtin(e, "gl.get_window_size",builtin_gl_get_window_size);
     lenv_add_builtin(e, "gl.load_image",builtin_gl_load_image);
+    lenv_add_builtin(e, "gl.paint",builtin_gl_paint);
+    lenv_add_builtin(e, "gl.clear",builtin_gl_clear);
 }
