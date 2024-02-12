@@ -1,3 +1,4 @@
+#define _CABBAGELANG_BUILTIN_LEAVES 1
 #include"./lib/Cabbagelang.h"
 
 int main(int argc,char* argv[],char* env[]){

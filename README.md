@@ -13,7 +13,7 @@ This is the official repository of Cabbagelang Programming Language.
 
 `make unix`
 
-## Install
+### Install
 
 > Windows
 
@@ -27,10 +27,8 @@ This is the official repository of Cabbagelang Programming Language.
 
 ## Dependences
 
-- **OpenGL**
+- **Raylib**
 
-- **GLFW**
+- **LibCURL** *Linux*
 
-- **GNU Readline** *For Linux*
-
-- **LibCURL** *For Linux*
+- **GNU Readline** *Linux*

@@ -2034,7 +2034,6 @@ void lenv_add_builtin(lenv* e,char* name,lbuiltin func){
     lval_del(k);
     lval_del(v);
 }
-#include"glinter.h"
 
 lval* builtin_var(lenv* e,lval* a,char* func){
     LASSERT_TYPE(func,a,0,LVAL_QEXPR);
@@ -2107,14 +2106,20 @@ lval* builtin_print(lenv* e,lval* a){
     return lval_sexpr();
 }
 
+#ifdef _CABBAGELANG_BUILTIN_LEAVES
+void raylib_init(lenv* e);
+#endif
+
 lval* builtin_load(lenv* e,lval* a){
     LASSERT_NUM("import", a, 1);
     LASSERT_TYPE("import", a, 0, LVAL_STR);
+    #ifdef _CABBAGELANG_BUILTIN_LEAVES
     //Builtin leaves
-    if(!strcmp(a->cell[0]->str,"glinter")){
-        glinter_init(e);
+    if(!strcmp(a->cell[0]->str,"raylib")){
+        raylib_init(e);
         return lval_sexpr();
     }
+    #endif
 
     mpc_result_t r;
     if(mpc_parse_contents(a->cell[0]->str,Lispy,&r)){
