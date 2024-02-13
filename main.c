@@ -6,6 +6,7 @@ int main(int argc,char* argv[],char* env[]){
     if(argc==1){
 
         printf("Cabbagelang Version %s\n",CABBAGELANG_VERSION);
+        puts("Type \"copyright ()\" \"license ()\" for more information.");
         puts("press Ctrl+C to Exit\n");
 
         while(1){

@@ -31,4 +31,4 @@ This is the official repository of Cabbagelang Programming Language.
 
 - **LibCURL** *Linux*
 
-- **GNU Readline** *Linux*
+- **LibEDIT** *Linux*
