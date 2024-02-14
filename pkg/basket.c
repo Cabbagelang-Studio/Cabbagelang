@@ -8,6 +8,7 @@
 #include<dirent.h>
 #include"miniz.h"
 bool quiet=false;
+extern char* optarg;
 char* str_cat(char *a, char *b){
 	char *target = (char*)malloc(strlen(a) + strlen(b) + 1);
 	strcpy(target, a);
@@ -194,7 +195,7 @@ void download_file(const char *url, const char *output_file) {
     curl_easy_cleanup(curl);
     fclose(file);
 
-    if(res!=CURLE_OK) error("Failed to open file %s.",destination);
+    if(res!=CURLE_OK) error("Failed to open file %s.",output_file);
 }
 #endif
 void unzip(const char *zip_filename, const char *output_dir) {
