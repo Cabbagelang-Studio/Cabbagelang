@@ -555,6 +555,25 @@ lval* builtin_raylib_is_key_down(lenv*e,lval*a){
     return lval_num(result);
 }
 
+lval* builtin_raylib_set_cursor(lenv*e,lval*a){
+    LASSERT_NUM("raylib.set_cursor",a,1);
+    LASSERT_TYPE("raylib.set_cursor",a,0,LVAL_NUM);
+    RAYLIB_WINDOW_CHECK();
+    int cursor=a->cell[0]->num;
+    SetMouseCursor(cursor);
+    lval_del(a);
+    return lval_sexpr();
+}
+
+lval* builtin_raylib_get_key_pressed(lenv*e,lval*a){
+    LASSERT_NUM("raylib.get_key_pressed",a,1);
+    LASSERT_TYPE("raylib.get_key_pressed",a,0,LVAL_SEXPR);
+    RAYLIB_WINDOW_CHECK();
+    int result=GetKeyPressed();
+    lval_del(a);
+    return lval_num(result);
+}
+
 lval* builtin_raylib_is_mouse_button_down(lenv*e,lval*a){
     LASSERT_NUM("raylib.is_mouse_button_down",a,1);
     LASSERT_TYPE("raylib.is_mouse_button_down",a,0,LVAL_NUM);
@@ -953,6 +972,18 @@ void raylib_init(lenv* e){
     lval_constant(e,"raylib.FLAG_MSAA_4X_HINT",lval_num(FLAG_MSAA_4X_HINT));
     lval_constant(e,"raylib.FLAG_INTERLACED_HINT",lval_num(FLAG_INTERLACED_HINT));
 
+    lval_constant(e,"raylib.MOUSE_CURSOR_DEFAULT",lval_num(MOUSE_CURSOR_DEFAULT));
+    lval_constant(e,"raylib.MOUSE_CURSOR_ARROW",lval_num(MOUSE_CURSOR_ARROW));
+    lval_constant(e,"raylib.MOUSE_CURSOR_IBEAM",lval_num(MOUSE_CURSOR_IBEAM));
+    lval_constant(e,"raylib.MOUSE_CURSOR_CROSSHAIR",lval_num(MOUSE_CURSOR_CROSSHAIR));
+    lval_constant(e,"raylib.MOUSE_CURSOR_POINTING_HAND",lval_num(MOUSE_CURSOR_POINTING_HAND));
+    lval_constant(e,"raylib.MOUSE_CURSOR_RESIZE_EW",lval_num(MOUSE_CURSOR_RESIZE_EW));
+    lval_constant(e,"raylib.MOUSE_CURSOR_RESIZE_NS",lval_num(MOUSE_CURSOR_RESIZE_NS));
+    lval_constant(e,"raylib.MOUSE_CURSOR_RESIZE_NWSE",lval_num(MOUSE_CURSOR_RESIZE_NWSE));
+    lval_constant(e,"raylib.MOUSE_CURSOR_RESIZE_NESW",lval_num(MOUSE_CURSOR_RESIZE_NESW));
+    lval_constant(e,"raylib.MOUSE_CURSOR_RESIZE_ALL,",lval_num(MOUSE_CURSOR_RESIZE_ALL));
+    lval_constant(e,"raylib.MOUSE_CURSOR_NOT_ALLOWED,",lval_num(MOUSE_CURSOR_NOT_ALLOWED));
+
     lenv_add_builtin(e,"raylib.init",builtin_raylib_init);
     lenv_add_builtin(e,"raylib.audio_init",builtin_raylib_audio_init);
     lenv_add_builtin(e,"raylib.set_fps",builitn_raylib_set_fps);
@@ -987,6 +1018,8 @@ void raylib_init(lenv* e){
     lenv_add_builtin(e,"raylib.is_key_down",builtin_raylib_is_key_down);
     lenv_add_builtin(e,"raylib.is_key_pressed",builtin_raylib_is_key_pressed);
     lenv_add_builtin(e,"raylib.is_key_pressed_repeat",builitn_raylib_is_key_pressed_repeat);
+    lenv_add_builtin(e,"raylib.get_key_pressed",builtin_raylib_get_key_pressed);
+    lenv_add_builtin(e,"raylib.set_cursor",builtin_raylib_set_cursor);
     lenv_add_builtin(e,"raylib.is_mouse_button_down",builtin_raylib_is_mouse_button_down);
     lenv_add_builtin(e,"raylib.is_mouse_button_up",builtin_raylib_is_mouse_button_up);
     lenv_add_builtin(e,"raylib.is_mouse_button_pressed",builtin_raylib_is_mouse_button_pressed);

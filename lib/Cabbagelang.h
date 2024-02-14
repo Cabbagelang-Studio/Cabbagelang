@@ -1997,7 +1997,6 @@ lval* builtin_calldl(lenv* e,lval* a){
 #endif
 
 lval* thread_proc(void* param){
-	lval* Cabbagelang_load_string(lenv*,char*,char*);
 	lval* result=builtin_eval(CABBAGELANG_DEFAULT_ENVIRONMENT,param);
 	return result;
 }
@@ -2147,6 +2146,16 @@ SOFTWARE.");
     return lval_sexpr();
 }
 
+lval* builtin_exec(lenv*e,lval*a){
+    LASSERT_NUM("exec",a,1);
+    LASSERT_TYPE("exec",a,0,LVAL_STR);
+    char* input=a->cell[0]->str;
+    lval* Cabbagelang_load_string(lenv*e,const char*,const char*);
+    lval* result=Cabbagelang_load_string(e,input,"<string>");
+    lval_del(a);
+    return result;
+}
+
 void lenv_add_builtins(lenv* e){
 
     lenv_add_builtin(e,"\\",builtin_lambda);
@@ -2234,6 +2243,7 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "jthread", builtin_jthread);
     lenv_add_builtin(e, "dthread", builtin_dthread);
     lenv_add_builtin(e, "mongoose", builtin_mongoose);
+    lenv_add_builtin(e, "exec", builtin_exec);
 
     /* Information */
     lenv_add_builtin(e, "copyright", builtin_copyright);
@@ -2317,14 +2327,14 @@ void Cabbagelang_finalize(lenv* e){
     free(thread_list);
 } 
 
-lval* Cabbagelang_load_string(lenv* e, char* input, char* filename){
+lval* Cabbagelang_load_string(lenv* e, const char* input, const char* filename){
 	mpc_result_t r;
 	mpc_parse(filename, input, Lispy, &r);
 	lval*x =lval_eval(e,lval_read(r.output));
 	return x;
 }
 
-lval* Cabbagelang_load_file(lenv* e, char* filename){
+lval* Cabbagelang_load_file(lenv* e, const char* filename){
 	lval* file=lval_add(lval_sexpr(),lval_str(filename));
     lval* x=builtin_load(e,file);
     return x;

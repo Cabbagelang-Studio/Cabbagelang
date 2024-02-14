@@ -14,6 +14,13 @@ if test -e cabbage; then
     cp cabbage /bin/cabbage
     cp cabbage /lib/cabbagelang/cabbage
     echo "export CABBAGELANG_HOME=/lib/cabbagelang/" >> /etc/profile
+    if test -e basket; then
+        cp basket /bin/basket
+        cp basket /lib/cabbagelang/basket
+    else
+        echo "basket does not exist, installation aborted."
+        exit
+    fi
 else
     echo "cabbage does not exist, installation aborted."
     exit

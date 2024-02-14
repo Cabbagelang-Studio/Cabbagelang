@@ -19,17 +19,21 @@ endif
 
 unix: cabbage
 	@echo "$(BIT)-bit compiled successfully."
-cabbage: main.c lib/raylib_cbg.c
+basket: pkg/basket.c
+	gcc pkg/basket.c -o basket $(GCC_FLAG) -lcurl
+cabbage: main.c lib/raylib_cbg.c basket
 	gcc main.c -o cabbage lib/raylib_cbg.c $(GCC_FLAG) -lm -ledit -lcurl -lraylib
 
 cabbage.ico.o: cabbage.rc
 	windres cabbage.rc -o cabbage.ico.o $(ICO_FLAG)
 windows: cabbage.exe cabbagew.exe
 	@echo $(BIT)-bit compiled successfully.
+basket.exe: pkg/basket.c
+	gcc pkg/basket.c -o basket $(GCC_FLAG) -lwininet
 cabbage.exe: main.c lib/raylib_cbg.c cabbage.ico.o cabbagew.exe
 	gcc main.c lib/raylib_cbg.c cabbage.ico.o -o cabbage $(GCC_FLAG) -lws2_32 -lraylib -lwinmm -lwininet -lgdi32 -lopengl32 -static
-cabbagew.exe: main.c lib/raylib_cbg.c cabbage.ico.o
+cabbagew.exe: main.c lib/raylib_cbg.c cabbage.ico.o basket.exe
 	gcc main.c lib/raylib_cbg.c cabbage.ico.o -o cabbagew $(GCC_FLAG) -mwindows  -lws2_32 -lraylib -lwinmm -lwininet -lgdi32 -lopengl32 -static
 
 clean:
-	rm -f cabbage.exe cabbagew.exe cabbage cabbage.ico.o
+	rm -f cabbage.exe cabbagew.exe basket.exe cabbage basket cabbage.ico.o

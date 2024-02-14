@@ -16,7 +16,12 @@ if exist cabbage.exe (
         copy cabbagew.exe %installation_dir%\\cabbagew.exe
 	mkdir %installation_dir%\\leaves
         setx CABBAGELANG_HOME %installation_dir%
-        
+        if exist basket.exe (
+            copy basket.exe %installation_dir%\\basket.exe
+        ) else (
+            echo basket.exe does not exist, installation aborted.
+            exit /b
+        )
     ) else (
         echo cabbagew.exe does not exist, installation aborted.
         exit /b
