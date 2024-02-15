@@ -1,0 +1,18 @@
+(import "raylib") ;Window library
+(raylib.hide_logs()) ;If you want to show logs, use (raylib.show_logs())
+(raylib.init 300 300 "title")
+(while {not (raylib.window_should_close())} {
+	(raylib.begin_drawing())
+	(raylib.clear_background raylib.GREEN)
+	(raylib.text "Hello, World!" 0 0 30 {255 255 255 255})
+	;raylib.text [text] [x] [y] [size] [color]
+	;{255 255 255 255}: 
+		;R: 255
+		;G: 255
+		;B: 255
+		;A: 255
+	;Cabbagelang raylib uses RGBA to render
+	(raylib.end_drawing())
+})
+(raylib.close())
+(exit 0)

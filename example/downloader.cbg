@@ -1,0 +1,3 @@
+(={url}(kin "Input URL: "))
+(={file}(kin "Input file: "))
+(download url file)

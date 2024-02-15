@@ -1,0 +1,7 @@
+(fun {triangle-surface a b c} {
+	do
+	(={p}(/ (+ a b c) 2))
+	;This line is for return value
+	(** (* p (- p a) (- p b) (- p c)) 0.5)
+})
+(output (triangle-surface 3 4 5) "\n")

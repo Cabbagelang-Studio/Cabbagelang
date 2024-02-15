@@ -1,0 +1,28 @@
+(={l}{1 2 3 4 5})
+(output 
+	(filter (\{x}{% x 2}) l) "\n"
+)
+(output (reverse l) "\n")
+(output (split l 2) "\n")
+(output
+	(take l 2) "\n"
+	(drop l 2) "\n"
+)
+(output
+	(take-while (\{x}{< x 2}) l) "\n"
+	(drop-while (\{x}{< x 2}) l) "\n"
+)
+;take-while: take until the object doesn't meet the condition
+;drop-while: drop until the function doesn't meet the condition
+(output
+	(map (\{x}{+ x 1}) l) "\n"
+)
+(output
+	(fold (\{x y}{+ x y}) l 1) "\n"
+)
+(output
+	(pack len 1 2 3 4 5) "\n"
+	(unpack + l) "\n"
+)
+;unpack aka curry
+;pack aka uncurry

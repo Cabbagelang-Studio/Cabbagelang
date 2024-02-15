@@ -1,0 +1,11 @@
+(func{a}1) ;This is an instant function, but it can be used as global variable
+(={b}2) ;This is a global variable
+(={c}3) ;The same as b
+(fun {function _} {
+	do
+	(func{a}4) ;Actually it defines an instant function a, but in this scope only.
+	(={b}1) ;Variable b is not writable
+	(output c "\n") ;But variable c is still readable
+	(let {a}) ;Returns variable a
+})
+(output a "," b "," c "," (function()) "\n")

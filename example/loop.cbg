@@ -1,0 +1,19 @@
+(={start}(time()))
+(={n}0)
+(while{< n 100}{ ;Attention: The condition for while is Q-EXPR {}
+	(={n}(+ n 1))
+})
+(={time_used}(- (time()) start))
+(={time_used}(nts time_used)) ;Number to string
+(={i}0)
+(={time_sec}"")
+(={break}false)
+(while{and (< i (strlen time_used)) (not break)}{
+	(if(== (! time_used i) "."){ ;Function !: Get the Xth character of the string
+		(={break}true)
+	}{
+		(={time_sec}(. time_sec (! time_used i))) ;Function .: Connect string
+	})
+	(={i}(+ i 1))
+})
+(output "The program cost " time_sec " seconds\n")

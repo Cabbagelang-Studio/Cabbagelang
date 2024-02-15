@@ -1,0 +1,16 @@
+(={x}(kin "Input a number:"))
+(={x}(stn x)) ;String to number
+(if(> x 0){
+	;If the condition is true
+	(output "The number is positive\n")
+}
+{
+	;If the condition is not true(else)
+	(if(== x 0){
+		(output "The number is zero\n")
+	}
+	{
+		(output "The number is negative\n")	
+	})
+})
+;Tip: If the number can't be converted to number, the result of function "stn" will be 0.

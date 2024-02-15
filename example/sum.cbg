@@ -1,0 +1,4 @@
+(fun {sum a b c} {
+	(+ a b c)
+})
+(output (sum 1 2 3) "\n")
