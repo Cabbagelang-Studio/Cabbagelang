@@ -24,7 +24,7 @@ SOFTWARE.
 #ifndef _CABBAGELANG_H
 #define _CABBAGELANG_H 1
 
-#define CABBAGELANG_VERSION "3.4.0"
+#define CABBAGELANG_VERSION "3.5.0"
 
 #if !_WIN32
 #if _POSIX_C_SOURCE < 200809L
@@ -1976,7 +1976,6 @@ lval* builtin_calldl(lenv* e,lval* a){
 	DLFunction DLFun=(DLFunction)GetProcAddress(DL,a->cell[1]->str);
 	lval* dl_result=DLFun(e,arguments);
 	FreeLibrary(DL);
-    lval_del(a);
 	return dl_result;
 }
 lval* builtin_extend(lenv*e,lval*a){
@@ -1994,7 +1993,6 @@ lval* builtin_extend(lenv*e,lval*a){
     DLFunction DLFun=(DLFunction)GetProcAddress(DL,"init");
     DLFun(e);
     FreeLibrary(DL);
-    lval_del(a);
     return lval_sexpr();
 }
 #else
