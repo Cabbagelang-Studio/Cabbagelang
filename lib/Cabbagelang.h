@@ -2024,7 +2024,6 @@ lval* builtin_calldl(lenv* e,lval* a){
 	lval* dl_result=DLFun(e,arguments);
 	dlclose(DL);
 	lval* result=dl_result;
-    lval_del(a);
 	return result;
 }
 lval* builtin_extend(lenv*e,lval*a){
@@ -2035,7 +2034,6 @@ lval* builtin_extend(lenv*e,lval*a){
     DLFun=dlsym(DL,"init");
     DLFun(e);
     dlclose(DL);
-    lval_del(a);
     return lval_sexpr();
 }
 #endif
