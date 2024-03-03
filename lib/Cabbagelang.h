@@ -1961,7 +1961,10 @@ lval* builtin_download(lenv* e,lval* a){
 #endif
 #ifdef _WIN32
 lval* builtin_calldl(lenv* e,lval* a){
-	LASSERT_NUM("calldl",a,2);
+    if(a->count<2){
+        lval_del(a);
+        return lval_err("Function 'calldl' passed incorrect number of arguments. Got %d, Expected 2+.",a->count);
+    }
 	LASSERT_TYPE("calldl",a,0,LVAL_STR);
 	LASSERT_TYPE("calldl",a,1,LVAL_STR);
 	typedef lval* (*DLFunction)(lenv* e,lval* a);
@@ -1973,17 +1976,46 @@ lval* builtin_calldl(lenv* e,lval* a){
 	DLFunction DLFun=(DLFunction)GetProcAddress(DL,a->cell[1]->str);
 	lval* dl_result=DLFun(e,arguments);
 	FreeLibrary(DL);
+    lval_del(a);
 	return dl_result;
+}
+lval* builtin_extend(lenv*e,lval*a){
+    LASSERT_NUM("extend",a,1);
+    LASSERT_TYPE("extend",a,0,LVAL_STR);
+    typedef void (*DLFunction)(lenv*e);
+    char* extension=a->cell[0]->str;
+    FILE* fp=fopen(extension,"rb");
+    if(fp==NULL){
+        char* new_extension=malloc(strlen(getenv("CABBAGELANG_HOME"))+strlen(extension)+8);
+  	    sprintf(new_extension,"%s/leaves/%s",getenv("CABBAGELANG_HOME"),extension);
+        extension=new_extension;
+    }fclose(fp);
+    HINSTANCE DL=LoadLibrary(extension);
+    DLFunction DLFun=(DLFunction)GetProcAddress(DL,"init");
+    DLFun(e);
+    FreeLibrary(DL);
+    lval_del(a);
+    return lval_sexpr();
 }
 #else
 #include<dlfcn.h>
 
 lval* builtin_calldl(lenv* e,lval* a){
-	LASSERT_NUM("calldl",a,2);
+    if(a->count<2){
+        lval_del(a);
+        return lval_err("Function 'calldl' passed incorrect number of arguments. Got %d, Expected 2+.",a->count);
+    }
 	LASSERT_TYPE("calldl",a,0,LVAL_STR);
 	LASSERT_TYPE("calldl",a,1,LVAL_STR);
 	lval* (*DLFun)(lenv* e,lval* a);
-	void* DL=dlopen(a->cell[0]->str,RTLD_LAZY);
+    char* extension=a->cell[0]->str;
+    FILE* fp=fopen(extension,"rb");
+    if(fp==NULL){
+        char* new_extension=malloc(strlen(getenv("CABBAGELANG_HOME"))+strlen(extension)+8);
+  	    sprintf(new_extension,"%s/leaves/%s",getenv("CABBAGELANG_HOME"),extension);
+        extension=new_extension;
+    }fclose(fp);
+	void* DL=dlopen(extension,RTLD_LAZY);
 	lval* arguments=lval_sexpr();
 	for(int i=2;i<a->count;i++){
 		lval_add(arguments,a->cell[i]);
@@ -1992,7 +2024,19 @@ lval* builtin_calldl(lenv* e,lval* a){
 	lval* dl_result=DLFun(e,arguments);
 	dlclose(DL);
 	lval* result=dl_result;
+    lval_del(a);
 	return result;
+}
+lval* builtin_extend(lenv*e,lval*a){
+    LASSERT_NUM("extend",a,1);
+    LASSERT_TYPE("extend",a,0,LVAL_STR);
+    void (*DLFun)(lenv*e);
+    void* DL=dlopen(a->cell[0]->str,RTLD_LAZY);
+    DLFun=dlsym(DL,"init");
+    DLFun(e);
+    dlclose(DL);
+    lval_del(a);
+    return lval_sexpr();
 }
 #endif
 
@@ -2239,6 +2283,7 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "request", builtin_request);
     lenv_add_builtin(e, "download", builtin_download);
     lenv_add_builtin(e, "calldl", builtin_calldl);
+    lenv_add_builtin(e, "extend", builtin_extend);
     lenv_add_builtin(e, "cthread", builtin_cthread);
     lenv_add_builtin(e, "jthread", builtin_jthread);
     lenv_add_builtin(e, "dthread", builtin_dthread);
