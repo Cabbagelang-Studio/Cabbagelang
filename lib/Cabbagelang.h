@@ -24,7 +24,7 @@ SOFTWARE.
 #ifndef _CABBAGELANG_H
 #define _CABBAGELANG_H 1
 
-#define CABBAGELANG_VERSION "3.5.0"
+#define CABBAGELANG_VERSION "3.5.1"
 
 #if !_WIN32
 #if _POSIX_C_SOURCE < 200809L
@@ -139,7 +139,7 @@ struct lval {
     //function
     lbuiltin builtin;//
     lenv* env;
-    lval* foramls;
+    lval* formals;
     lval* body;
 
     //count and pointer to a list of lval*
@@ -247,12 +247,12 @@ lval* lval_builtin(lbuiltin func){
     return v;
 }
 
-lval* lval_lambda(lval* foramls,lval* body){
+lval* lval_lambda(lval* formals,lval* body){
     lval* v=(lval*)malloc(sizeof(lval));
     v->type=LVAL_FUN;
     v->builtin=NULL;
     v->env=lenv_new();
-    v->foramls=foramls;
+    v->formals=formals;
     v->body=body;
     return v;
 }
@@ -288,7 +288,7 @@ void lval_del(lval* v){
         case LVAL_FUN:
             if(!v->builtin){
                 lenv_del(v->env);
-                lval_del(v->foramls);
+                lval_del(v->formals);
                 lval_del(v->body);
             }
             break;
@@ -333,7 +333,7 @@ int lval_eq(lval* x,lval* y){
             if(x->builtin||y->builtin){
                 return x->builtin==y->builtin;
             }else{
-                return lval_eq(x->foramls,y->foramls)&&
+                return lval_eq(x->formals,y->formals)&&
                     lval_eq(x->body,y->body);
             }
         case LVAL_QEXPR:
@@ -418,7 +418,7 @@ lval* lval_copy(lval* v){
             }else{
                 x->builtin=NULL;
                 x->env=lenv_copy(v->env);
-                x->foramls=lval_copy(v->foramls);
+                x->formals=lval_copy(v->formals);
                 x->body=lval_copy(v->body);
             }
             break;
@@ -504,8 +504,7 @@ lval* lenv_get(lenv* e,lval* k){
     if(e->par){
         return lenv_get(e->par,k);
     }else{
-    	if(k->sym[0]=='#') return lval_sexpr();
-        return lval_err("Unbound Symbol '%s'",k->sym);
+        return lval_qexpr(); //nil
     }
 }
 
@@ -516,7 +515,7 @@ void lval_print(lval* v){
                 printf("<builtin>");
             }else{
                 printf("(\\ ");
-                lval_print(v->foramls);
+                lval_print(v->formals);
                 putchar(' ');
                 lval_print(v->body);
                 putchar(')');
@@ -689,25 +688,25 @@ lval* lval_call(lenv* e,lval* f,lval* a){
     if(f->builtin){return f->builtin(e,a);}
 
     int given=a->count;
-    int total=f->foramls->count;
+    int total=f->formals->count;
 
     //arguments
     while(a->count){
-        if(f->foramls->count==0){
+        if(f->formals->count==0){
             lval_del(a);
             return lval_err("Function passed too many arguments."
                 "Got %i,Expected %i.",given,total);
         }
 
-        lval* sym=lval_pop(f->foramls,0);
+        lval* sym=lval_pop(f->formals,0);
         //
         if(strcmp(sym->sym,"&")==0){
-            if(f->foramls->count!=1){
+            if(f->formals->count!=1){
                 lval_del(a);
                 return lval_err("Function format invalid."
                             "Symbol '&' not followed by single symbol");
             }
-            lval* nsym=lval_pop(f->foramls,0);
+            lval* nsym=lval_pop(f->formals,0);
             lenv_put(f->env,nsym,builtin_list(e,a));
             lval_del(sym);
             lval_del(nsym);
@@ -721,15 +720,15 @@ lval* lval_call(lenv* e,lval* f,lval* a){
     }
     lval_del(a);
     //
-    if(f->foramls->count>0&&
-       strcmp(f->foramls->cell[0]->sym,"&")==0){
-        if(f->foramls->count!=2){
+    if(f->formals->count>0&&
+       strcmp(f->formals->cell[0]->sym,"&")==0){
+        if(f->formals->count!=2){
             return lval_err("Function format invalid."
                         "Symbol '&' not followed by single symbol");
         }
 
-        lval_del(lval_pop(f->foramls,0));
-        lval* sym=lval_pop(f->foramls,0);
+        lval_del(lval_pop(f->formals,0));
+        lval* sym=lval_pop(f->formals,0);
         lval* val=lval_qexpr();
 
         lenv_put(f->env,sym,val);
@@ -737,7 +736,7 @@ lval* lval_call(lenv* e,lval* f,lval* a){
         lval_del(val);
     }
 
-    if(f->foramls->count==0){
+    if(f->formals->count==0){
         f->env->par=e;
         return builtin_eval(f->env,
                         lval_add(lval_sexpr(),lval_copy(f->body)));
@@ -1165,6 +1164,132 @@ lval* builtin_drop(lenv* e,lval* a){
 	return v;
 }
 
+lval* builtin_unpack(lenv*e,lval*a){
+    LASSERT_NUM("unpack",a,2);
+    LASSERT_TYPE("unpack",a,0,LVAL_FUN);
+    LASSERT_TYPE("unpack",a,1,LVAL_QEXPR);
+    /*
+    (fun {unpack f l}{
+        eval (join (list f) l) 
+    }) 
+    */
+   lval* function=lval_pop(a,0);
+   function=lval_add(lval_qexpr(),function);
+   lval* execution=lval_qexpr();
+   lval_join(execution,function);
+   lval_join(execution,lval_take(a,0));
+   execution->type=LVAL_SEXPR;
+   return lval_eval(e,execution);
+}
+
+lval* builtin_pack(lenv*e,lval*a){
+    LASSERT_TYPE("pack",a,0,LVAL_FUN);
+    /*
+    (fun {pack f & xs} {
+        f xs
+    }) 
+    */
+   lval* args=lval_qexpr();
+   while(a->count>1){
+        args=lval_add(args,lval_pop(a,1));
+   }
+   lval* function=lval_add(lval_sexpr(),lval_take(a,0));
+   lval* execution=lval_add(function,args);
+   return lval_eval(e,execution);
+}
+
+lval* builtin_do(lenv*e,lval*a){
+    /*
+    (fun {do & l} { 
+        if (== l nil) {nil} {index l -1} 
+    }) 
+    */
+    lval*x=lval_take(a,a->count-1);
+    return x;
+}
+
+lval* builtin_let(lenv*e,lval*a){
+    LASSERT_NUM("let",a,1);
+    LASSERT_TYPE("let",a,0,LVAL_QEXPR);
+    /*(fun {let b} 
+        { ((\\ {_} b) ()) }
+    ) */
+    lval* v=lval_take(a,0);
+    v->type=LVAL_SEXPR;
+    return lval_eval(e,v);
+}
+
+lval* builtin_split(lenv*e,lval*a){
+    LASSERT_NUM("split",a,2);
+    LASSERT_TYPE("split",a,0,LVAL_QEXPR);
+    LASSERT_TYPE("split",a,1,LVAL_NUM);
+    //(fun {split l n} {list (take l n) (drop l n)})
+    lval* head=lval_qexpr();
+    int index=a->cell[1]->num;
+    a=lval_take(a,0);
+    if(index<0)index=a->count+index;
+    if(index>a->count){
+        lval_del(a);
+        lval_del(head);
+        return lval_err("Invalid split index: %d",index);
+    }
+    while(a->count>index){
+        head=lval_add(head,lval_pop(a,0));
+    }
+    lval* qexpr=lval_qexpr();
+    lval_add(qexpr,head);
+    lval_add(qexpr,a);
+    return qexpr;
+}
+
+lval* builtin_reverse(lenv*e,lval*a){
+    LASSERT_NUM("reverse",a,1);
+    LASSERT_TYPE("reverse",a,0,LVAL_QEXPR);
+    // (fun {reverse l} {take l (- 0 (len l))}) 
+    lval* v=lval_pop(a,0);
+	int index=-v->count;
+	if(abs(index)>v->count){
+		lval_del(a);
+		lval_del(v);
+		return lval_err("Invalid index.");
+	}
+	lval* x=lval_qexpr();
+	for(int i=0;i<abs(index);i++){
+		lval_add(x,lval_pop(v,index>0?0:(v->count-1)));
+	}lval_del(a);
+	lval_del(v);
+    return x;
+}
+
+lval* builtin_filter(lenv*e,lval*a){
+    LASSERT_NUM("filter",a,2);
+    LASSERT_TYPE("filter",a,0,LVAL_FUN);
+    LASSERT_TYPE("filter",a,1,LVAL_QEXPR);
+    /*
+    (fun {filter f l} { 
+        do
+        (= {result} nil)
+        (= {i} 0) 
+        (while{< i (len l)}{ 
+            (if(unpack f (list(index l i))){
+                 = {result} (join result (list(index l i))) }{})
+             (= {i} (+ i 1)) }) 
+        (let {result}) }) 
+    */
+   lval* l=lval_pop(a,1);
+   lval* f=lval_take(a,0);
+   lval* result=lval_qexpr();
+   while(l->count>0){
+        lval* item=lval_pop(l,0);
+        lval* arg=lval_sexpr();
+        arg=lval_add(arg,lval_copy(item));
+        lval* funcall=lval_call(e,lval_copy(f),arg);
+        if(funcall->num){
+            result=lval_add(result,item);
+        }
+   }return result;
+}
+
 lval* builtin_argv(lenv* e,lval* a){
 	LASSERT_NUM("argv",a,1);
 	LASSERT_TYPE("argv",a,0,LVAL_NUM);
@@ -1275,6 +1400,31 @@ lval* builtin_ge(lenv* e, lval* a) {
 
 lval* builtin_le(lenv* e, lval* a) {
     return builtin_ord(e, a, "<=");
+}
+
+lval* builtin_not(lenv*e,lval*a){
+    LASSERT_NUM("not",a,1);
+    LASSERT_TYPE("not",a,0,LVAL_NUM);
+    lval*x=lval_num(!lval_take(a,0)->num);
+    return x;
+}
+
+lval* builtin_and(lenv*e,lval*a){
+    int result=1;
+    while(a->count>0&&result){
+        LASSERT_TYPE("and",a,0,LVAL_NUM);
+        result=result&&lval_pop(a,0)->num;
+    }lval_del(a);
+    return lval_num(result);
+}
+
+lval* builtin_or(lenv*e,lval*a){
+    int result=0;
+    while(a->count>0&&(!result)){
+        LASSERT_TYPE("or",a,0,LVAL_NUM);
+        result=result||lval_pop(a,0)->num;
+    }lval_del(a);
+    return lval_num(result);
 }
 
 lval* builtin_if(lenv* e,lval* a){
@@ -1411,6 +1561,26 @@ lval* builtin_def(lenv* e,lval* a){
     return builtin_var(e,a,"func");
 }
 
+lval* builtin_fun(lenv*e,lval*a){
+    LASSERT_NUM("fun",a,2);
+    LASSERT_TYPE("fun",a,0,LVAL_QEXPR);
+    LASSERT_TYPE("fun",a,1,LVAL_QEXPR);
+    /*
+    (func {fun}
+         (\\ {f b} { func (head f) (\\ (tail f) b) }
+    )) 
+    */
+    lval* body=lval_pop(a,1);
+    lval* fun=lval_take(a,0);
+    lval* head=lval_pop(fun,0);
+    head=lval_add(lval_qexpr(),head);
+    lval* tail=fun;
+    lval* fun_arg=lval_sexpr();
+    fun_arg=lval_add(fun_arg,head);
+    fun_arg=lval_add(fun_arg,lval_lambda(tail,body));
+    return builtin_var(e,fun_arg,"func");
+}
+
 lval* builtin_put(lenv* e,lval* a){
     return builtin_var(e,a,"=");
 }
@@ -1435,11 +1605,11 @@ lval* builtin_lambda(lenv* e,lval* a){
                 "Can't define non-symbol. Got %s, Expected %s.",
                 ltype_name(a->cell[0]->cell[i]->type),ltype_name(LVAL_SYM));
     }
-    lval* foramls=lval_pop(a,0);
+    lval* formals=lval_pop(a,0);
     lval* body=lval_pop(a,0);
     lval_del(a);
 
-    return lval_lambda(foramls,body);
+    return lval_lambda(formals,body);
 }
 
 lval* builtin_print(lenv* e,lval* a){
@@ -2200,6 +2370,7 @@ void lenv_add_builtins(lenv* e){
 
     lenv_add_builtin(e,"\\",builtin_lambda);
     lenv_add_builtin(e,"func",builtin_def);
+    lenv_add_builtin(e,"fun",builtin_fun);
     lenv_add_builtin(e,"=",builtin_put);
     /*list functions*/
     lenv_add_builtin(e, "list", builtin_list);
@@ -2211,6 +2382,15 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "len", builtin_len);
     lenv_add_builtin(e, "take", builtin_take);
     lenv_add_builtin(e, "drop", builtin_drop);
+    lenv_add_builtin(e, "unpack", builtin_unpack);
+    lenv_add_builtin(e, "curry", builtin_unpack);
+    lenv_add_builtin(e, "pack", builtin_pack);
+    lenv_add_builtin(e, "uncurry", builtin_pack);
+    lenv_add_builtin(e, "do", builtin_do);
+    lenv_add_builtin(e, "let", builtin_let);
+    lenv_add_builtin(e, "split", builtin_split);
+    lenv_add_builtin(e, "reverse", builtin_reverse);
+    lenv_add_builtin(e, "filter", builtin_filter);
 
     /* Mathematical Functions */
     lenv_add_builtin(e, "+", builtin_add);
@@ -2232,6 +2412,9 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "<",  builtin_lt);
     lenv_add_builtin(e, ">=", builtin_ge);
     lenv_add_builtin(e, "<=", builtin_le);
+    lenv_add_builtin(e, "not", builtin_not);
+    lenv_add_builtin(e, "and", builtin_and);
+    lenv_add_builtin(e, "or", builtin_or);
 
     /* String Functions */
     lenv_add_builtin(e, "import",  builtin_load);
@@ -2351,8 +2534,12 @@ lenv* Cabbagelang_initialize(int argc,char* argv[],char* env[]){
     CABBAGELANG_DEFAULT_ENVIRONMENT=e;
     lenv_add_builtins(e);
     
+    lval_constant(e,"nil",lval_qexpr());
+    lval_constant(e,"true",lval_num(1));
+    lval_constant(e,"false",lval_num(0));
+
     mpc_result_t r;
-	char* stdlib="(func {nil} {}) (func {true} 1) (func {false} 0) (func {fun} (\\ {f b} { func (head f) (\\ (tail f) b) })) (fun {unpack f l}{ eval (join (list f) l) }) (fun {pack f & xs} {f xs}) (func {curry} unpack) (func {uncurry} pack) (fun {do & l} { if (== l nil) {nil} {index l -1} }) (fun {let b} { ((\\ {_} b) ()) }) (fun {not x} {- 1 x}) (func {and} *) (func {or} +) (fun {split l n} {list (take l n) (drop l n)}) (fun {reverse l} {take l (- 0 (len l))}) (fun {filter f l} { do(= {result} nil) (= {i} 0) (while{< i (len l)}{ (if(unpack f (list(index l i))){ = {result} (join result (list(index l i))) }{}) (= {i} (+ i 1)) }) (let {result}) }) (fun {drop-while f l} { do(= {i} 0) (= {drop-while-flag} true) (while{and (< i (len l)) drop-while-flag} { (if(unpack f (list(index l i))){(= {i} (+ i 1))}{ = {drop-while-flag} false }) }) (drop l i) }) (fun {take-while f l} { do(= {i} 0) (= {take-while-flag} true) (while{and (< i (len l)) take-while-flag} { (if(unpack f (list(index l i))){(= {i} (+ i 1))}{ = {take-while-flag} false }) }) (take l i) }) (fun {map f l} { do(= {i} 0) (= {result} nil) (while {< i (len l)} { (= {result} (join result (list (f (index l i))))) (= {i} (+ i 1)) }) (let {result}) }) (fun {fold f l z} { do(= {i} 0) (while {< i (len l)} { (= {z} (f z (index l i))) (= {i} (+ i 1)) }) (let {z}) })";
+	char* stdlib="(fun {drop-while f l} { do(= {i} 0) (= {drop-while-flag} true) (while{and (< i (len l)) drop-while-flag} { (if(unpack f (list(index l i))){(= {i} (+ i 1))}{ = {drop-while-flag} false }) }) (drop l i) }) (fun {take-while f l} { do(= {i} 0) (= {take-while-flag} true) (while{and (< i (len l)) take-while-flag} { (if(unpack f (list(index l i))){(= {i} (+ i 1))}{ = {take-while-flag} false }) }) (take l i) }) (fun {map f l} { do(= {i} 0) (= {result} nil) (while {< i (len l)} { (= {result} (join result (list (f (index l i))))) (= {i} (+ i 1)) }) (let {result}) }) (fun {fold f l z} { do(= {i} 0) (while {< i (len l)} { (= {z} (f z (index l i))) (= {i} (+ i 1)) }) (let {z}) })";
 	mpc_parse("<stdlib>",stdlib,Lispy,&r);
     lval*x =lval_eval(e,lval_read(r.output));
     lval_del(x);
