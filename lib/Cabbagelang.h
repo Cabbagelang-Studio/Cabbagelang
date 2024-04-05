@@ -1290,6 +1290,124 @@ lval* builtin_filter(lenv*e,lval*a){
    }return result;
 }
 
+lval* builtin_drop_while(lenv*e,lval*a){
+    LASSERT_NUM("drop-while",a,2);
+    LASSERT_TYPE("drop-while",a,0,LVAL_FUN);
+    LASSERT_TYPE("drop-while",a,1,LVAL_QEXPR);
+    /*
+    (fun {drop-while f l} {
+        do(= {i} 0)
+        (= {drop-while-flag} true)
+        (while{and (< i (len l)) drop-while-flag} {
+             (if(unpack f (list(index l i))){(= {i} (+ i 1))}
+             { = {drop-while-flag} false }) })
+              (drop l i) }) 
+    */
+    lval* l=lval_pop(a,1);
+    lval* f=lval_take(a,0);
+    lval* result=lval_qexpr();
+    int index=0;
+    for(int i=0;i<l->count;i++){
+        lval* item=l->cell[i];
+        lval* arg=lval_sexpr();
+        arg=lval_add(arg,lval_copy(item));
+        lval* funcall=lval_call(e,lval_copy(f),arg);
+        if(!funcall->num){
+            index=i;
+            break;
+        }
+    }
+    result=l;
+    for(int i=0;i<index;i++){
+        lval_pop(result,0);
+    }
+    return result;
+}
+
+lval* builitn_take_while(lenv*e,lval*a){
+    LASSERT_NUM("take-while",a,2);
+    LASSERT_TYPE("take-while",a,0,LVAL_FUN);
+    LASSERT_TYPE("take-while",a,1,LVAL_QEXPR);
+    /*
+    (fun {take-while f l} {
+        do(= {i} 0)
+        (= {take-while-flag} true)
+        (while{and (< i (len l)) take-while-flag}
+            { (if(unpack f (list(index l i))){(= {i} (+ i 1))}
+            { = {take-while-flag} false }) }) (take l i) 
+            }) 
+    */
+    lval* l=lval_pop(a,1);
+    lval* f=lval_take(a,0);
+    lval* result=lval_qexpr();
+    int index=l->count;
+    for(int i=0;i<l->count;i++){
+        lval* item=l->cell[i];
+        lval* arg=lval_sexpr();
+        arg=lval_add(arg,lval_copy(item));
+        lval* funcall=lval_call(e,lval_copy(f),arg);
+        if(!funcall->num){
+            index=i;
+            break;
+        }
+    }
+    for(int i=0;i<index;i++){
+        result=lval_add(result,lval_copy(l->cell[i]));
+    }lval_del(l);
+    return result;
+}
+
+lval* builtin_map(lenv*e,lval*a){
+    LASSERT_NUM("map",a,2);
+    LASSERT_TYPE("map",a,0,LVAL_FUN);
+    LASSERT_TYPE("map",a,1,LVAL_QEXPR);
+    /*
+    (fun {map f l} {
+        do(= {i} 0)
+        (= {result} nil)
+        (while {< i (len l)} {
+            (= {result} (join result (list (f (index l i)))))
+            (= {i} (+ i 1)) })
+        (let {result}) }) 
+    */
+   lval* l=lval_pop(a,1);
+   lval* f=lval_take(a,0);
+   lval* result=lval_qexpr();
+   while(l->count>0){
+        lval* item=lval_pop(l,0);
+        lval* arg=lval_sexpr();
+        arg=lval_add(arg,lval_copy(item));
+        lval* funcall=lval_call(e,lval_copy(f),arg);
+        result=lval_add(result,funcall);
+   }lval_del(l);
+   return result;
+}
+
+lval* builtin_fold(lenv*e,lval*a){
+    LASSERT_NUM("fold",a,3);
+    LASSERT_TYPE("fold",a,0,LVAL_FUN);
+    LASSERT_TYPE("fold",a,1,LVAL_QEXPR);
+    /*
+    (fun {fold f l z} {
+        do(= {i} 0)
+        (while {< i (len l)}
+            { (= {z} (f z (index l i))) (= {i} (+ i 1)) })
+        (let {z}) })
+    */
+   lval* z=lval_pop(a,2);
+   lval* l=lval_pop(a,1);
+   lval* f=lval_take(a,0);
+   while(l->count>0){
+        lval* item=lval_pop(l,0);
+        lval* arg=lval_sexpr();
+        arg=lval_add(arg,lval_copy(z));
+        arg=lval_add(arg,lval_copy(item));
+        lval* funcall=lval_call(e,lval_copy(f),arg);
+        z=funcall;
+   }lval_del(l);
+   return z;
+}
+
 lval* builtin_argv(lenv* e,lval* a){
 	LASSERT_NUM("argv",a,1);
 	LASSERT_TYPE("argv",a,0,LVAL_NUM);
@@ -2391,6 +2509,10 @@ void lenv_add_builtins(lenv* e){
     lenv_add_builtin(e, "split", builtin_split);
     lenv_add_builtin(e, "reverse", builtin_reverse);
     lenv_add_builtin(e, "filter", builtin_filter);
+    lenv_add_builtin(e, "drop-while", builtin_drop_while);
+    lenv_add_builtin(e, "take-while", builitn_take_while);
+    lenv_add_builtin(e, "map", builtin_map);
+    lenv_add_builtin(e, "fold", builtin_fold);
 
     /* Mathematical Functions */
     lenv_add_builtin(e, "+", builtin_add);
@@ -2537,13 +2659,6 @@ lenv* Cabbagelang_initialize(int argc,char* argv[],char* env[]){
     lval_constant(e,"nil",lval_qexpr());
     lval_constant(e,"true",lval_num(1));
     lval_constant(e,"false",lval_num(0));
-
-    mpc_result_t r;
-	char* stdlib="(fun {drop-while f l} { do(= {i} 0) (= {drop-while-flag} true) (while{and (< i (len l)) drop-while-flag} { (if(unpack f (list(index l i))){(= {i} (+ i 1))}{ = {drop-while-flag} false }) }) (drop l i) }) (fun {take-while f l} { do(= {i} 0) (= {take-while-flag} true) (while{and (< i (len l)) take-while-flag} { (if(unpack f (list(index l i))){(= {i} (+ i 1))}{ = {take-while-flag} false }) }) (take l i) }) (fun {map f l} { do(= {i} 0) (= {result} nil) (while {< i (len l)} { (= {result} (join result (list (f (index l i))))) (= {i} (+ i 1)) }) (let {result}) }) (fun {fold f l z} { do(= {i} 0) (while {< i (len l)} { (= {z} (f z (index l i))) (= {i} (+ i 1)) }) (let {z}) })";
-	mpc_parse("<stdlib>",stdlib,Lispy,&r);
-    lval*x =lval_eval(e,lval_read(r.output));
-    lval_del(x);
-    mpc_ast_delete(r.output);
     
     return e;
 } 
