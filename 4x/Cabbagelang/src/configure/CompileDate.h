@@ -1,0 +1,6 @@
+﻿#ifndef COMPILE_DATE_H
+#define COMPILE_DATE_H
+
+#define COMPILE_DATE "2025-11-28"
+
+#endif // COMPILE_DATE_H

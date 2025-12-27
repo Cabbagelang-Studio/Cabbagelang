@@ -1,0 +1,8 @@
+package Main;
+import Io;
+class Main():
+    static int main(String[] args):
+        Io.Output.Println("Hello, world!");
+        return 0;
+    end
+end
